@@ -1,1 +1,3 @@
 git+https://github.com/ffont/push2-python.git
+pillow
+pycairo

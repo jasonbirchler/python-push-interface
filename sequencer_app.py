@@ -13,8 +13,11 @@ class SequencerApp:
         self.ui = SequencerUI(self.sequencer)
         
         # Connect to first available MIDI port
+        print(f"Available MIDI ports: {self.midi_output.available_ports}")
         if not self.midi_output.connect():
             print("Warning: No MIDI output connected")
+        else:
+            print(f"Connected to MIDI port: {self.midi_output.output_port.name if self.midi_output.output_port else 'None'}")
             
         # Set up Push 2 event handlers
         self._setup_handlers()
@@ -23,40 +26,50 @@ class SequencerApp:
         @push2_python.on_pad_pressed()
         def on_pad_pressed(push, pad_n, pad_ij, velocity):
             row, col = pad_ij
-            if row == 1:  # Use bottom row for step selection
-                self.ui.selected_step = col
-            elif row == 0:  # Use top row for note input
-                note = 60 + col  # C4 + offset
+            # Bottom two rows for step selection (16 steps total)
+            if row >= 6:  # Bottom two rows
+                step = (7 - row) * 8 + col  # Map to 0-15
+                if step < 16:
+                    self.ui.selected_step = step
+            # Top rows for note input
+            elif row < 6:
+                note = 60 + (5 - row) * 8 + col  # C4 + offset
                 self.sequencer.pattern.add_note(self.ui.selected_step, note, velocity)
+
                 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
-            if button_name == 'play':
+
+            # Try exact match first, then partial match
+            if button_name == 'play' or 'play' in button_name.lower():
                 if self.sequencer.is_playing:
+
                     self.sequencer.stop()
                 else:
+
                     self.sequencer.play()
-            elif button_name == 'stop':
+            elif button_name == 'stop' or 'stop' in button_name.lower():
+
                 self.sequencer.stop()
                 self.sequencer.current_step = 0
                 
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
-            if encoder_name == 'tempo':
+            print(f"Encoder rotated: {encoder_name}, increment: {increment}")  # Debug
+            if 'tempo' in encoder_name.lower():
                 new_bpm = max(60, min(200, self.sequencer.bpm + increment))
                 self.sequencer.set_bpm(new_bpm)
-            elif encoder_name == 'master':
+            elif 'master' in encoder_name.lower():
                 new_channel = max(1, min(16, self.sequencer.midi_channel + increment))
                 self.sequencer.set_midi_channel(new_channel)
                 
     def run(self):
         print("Sequencer app running...")
         print("Controls:")
-        print("- Bottom row pads: Select step")
-        print("- Top row pads: Add notes")
+        print("- Bottom 2 rows: Select step (1-16)")
+        print("- Top 6 rows: Add notes")
         print("- Play button: Start/stop")
-        print("- Tempo encoder: Adjust BPM")
-        print("- Master encoder: Change MIDI channel")
+        print("- Encoders: Adjust BPM/Channel (check debug output for names)")
         
         try:
             while True:

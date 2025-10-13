@@ -46,29 +46,40 @@ class Sequencer:
         
     def play(self):
         if not self.is_playing:
+    
             self.is_playing = True
             self._stop_event.clear()
+            self.midi_output.send_start()
             self._thread = threading.Thread(target=self._play_loop)
             self._thread.start()
+
             
     def stop(self):
         if self.is_playing:
             self.is_playing = False
             self._stop_event.set()
+            self.midi_output.send_stop()
             if self._thread:
                 self._thread.join()
                 
     def _play_loop(self):
+
         step_duration = 60.0 / (self.bpm * 4)  # 16th notes
+        start_time = time.time()
         
         while not self._stop_event.is_set():
-            # Play notes at current step
-            notes_at_step = self.pattern.get_notes_at_step(self.current_step)
-            for note in notes_at_step:
-                self.midi_output.send_note_on(self.midi_channel, note.note, note.velocity)
-                
-            # Advance step
-            self.current_step = (self.current_step + 1) % self.pattern.length
+            current_time = time.time()
+            elapsed = current_time - start_time
             
-            # Wait for next step
-            time.sleep(step_duration)
+            # Calculate current step based on elapsed time
+            new_step = int((elapsed * self.bpm * 4 / 60)) % self.pattern.length
+            
+            # If we've moved to a new step, play notes
+            if new_step != self.current_step:
+                self.current_step = new_step
+                notes_at_step = self.pattern.get_notes_at_step(self.current_step)
+
+                for note in notes_at_step:
+                    self.midi_output.send_note_on(self.midi_channel, note.note, note.velocity)
+            
+            time.sleep(0.01)  # 10ms sleep

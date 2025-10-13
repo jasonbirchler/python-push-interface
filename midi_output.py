@@ -32,8 +32,25 @@ class MidiOutput:
         if self.output_port:
             msg = mido.Message('note_on', channel=channel-1, note=note, velocity=velocity)
             self.output_port.send(msg)
+
             
     def send_note_off(self, channel: int, note: int):
         if self.output_port:
             msg = mido.Message('note_off', channel=channel-1, note=note, velocity=0)
+            self.output_port.send(msg)
+            
+    def send_clock(self):
+        if self.output_port:
+            msg = mido.Message('clock')
+            self.output_port.send(msg)
+
+            
+    def send_start(self):
+        if self.output_port:
+            msg = mido.Message('start')
+            self.output_port.send(msg)
+            
+    def send_stop(self):
+        if self.output_port:
+            msg = mido.Message('stop')
             self.output_port.send(msg)

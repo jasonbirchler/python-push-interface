@@ -34,7 +34,7 @@ def generate_display_frame(encoder_value, encoder_color, encoder_name):
     ctx.set_source_rgb(1, 1, 1)
     font_size = HEIGHT//3
     ctx.set_font_size(font_size)
-    ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.select_font_face("Helvetica", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     ctx.move_to(10, font_size * 2)
     ctx.show_text("{0}: {1}".format(encoder_name, encoder_value))
 
@@ -44,6 +44,9 @@ def generate_display_frame(encoder_value, encoder_color, encoder_name):
     frame = frame.transpose()
     return frame
 
+@push2_python.on_pad_pressed()
+def on_pad_pressed(push, pad_n, pad_ij, velocity):
+    print('Pad', pad_ij, 'pressed with velocity', velocity)
 # Set up action handlers to react to encoder touches and rotation
 @push2_python.on_encoder_rotated()
 def on_encoder_rotated(push, encoder_name, increment):

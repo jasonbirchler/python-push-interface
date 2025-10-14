@@ -34,3 +34,12 @@ The goal of this project is to create a multitrack, multitimbral MIDI sequencer 
 1. User can provide device definitions in the form of a JSON file (or similar) such that those devices can be selected and assigned to patterns from the controls of the Push
 1. User can create a track by selecting a device and sequencing multiple patterns
 1. User can create a song by sequencing multiple tracks
+
+## Updated Step Sequencer Behavior
+
+In order to avoid filling the display buffer, use the pads to show the user the current step of the sequence. 2 Rows of pads should be used exclusively to display this information and removed from the display. Each of the 16 pads should have the following behavior:
+
+1. On initialization, 16 sequencer pads (2 rows of 8) should be lit white
+1. while the user presses and holds a sequencer pad, they are able to assign a note by pressing one of 12 note pads (representing a full musical octave, and the octave up and down buttons allow the user to shift octaves up or down as appropriate)
+1. On releasing a sequencer pad, if a note was assigned the pad is now illuminated orange. if no note was assigned, the pad remains white.
+1. when the use starts the sequencer by pressing play, the current step in the sequence will be indicated by turning the corresponding pad green, and then back to whatever it's previous state was.

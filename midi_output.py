@@ -39,6 +39,11 @@ class MidiOutput:
             msg = mido.Message('note_off', channel=channel-1, note=note, velocity=0)
             self.output_port.send(msg)
             
+    def send_cc(self, channel: int, cc_number: int, value: int):
+        if self.output_port:
+            msg = mido.Message('control_change', channel=channel-1, control=cc_number, value=value)
+            self.output_port.send(msg)
+
     def send_clock(self):
         if self.output_port:
             msg = mido.Message('clock')

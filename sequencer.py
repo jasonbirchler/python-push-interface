@@ -37,6 +37,7 @@ class Sequencer:
         self.midi_channel = 1
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        self._active_notes = set()  # Track active notes
         
     def set_bpm(self, bpm: int):
         self.bpm = bpm
@@ -58,28 +59,55 @@ class Sequencer:
         if self.is_playing:
             self.is_playing = False
             self._stop_event.set()
+
+            # Send note-off for all active notes
+            for note in self._active_notes:
+                self.midi_output.send_note_off(self.midi_channel, note)
+            self._active_notes.clear()
+
             self.midi_output.send_stop()
             if self._thread:
                 self._thread.join()
                 
     def _play_loop(self):
-
         step_duration = 60.0 / (self.bpm * 4)  # 16th notes
-        start_time = time.time()
+        next_step_time = time.time()
+        note_off_time = None
+        current_step_notes = set()
         
         while not self._stop_event.is_set():
             current_time = time.time()
-            elapsed = current_time - start_time
             
-            # Calculate current step based on elapsed time
-            new_step = int((elapsed * self.bpm * 4 / 60)) % self.pattern.length
+            # Send note-off for previous step's notes
+            if note_off_time and current_time >= note_off_time:
+                for note in current_step_notes:
+                    self.midi_output.send_note_off(self.midi_channel, note)
+                    self._active_notes.discard(note)
+                current_step_notes.clear()
+                note_off_time = None
             
-            # If we've moved to a new step, play notes
-            if new_step != self.current_step:
-                self.current_step = new_step
+            # Check if it's time for the next step
+            if current_time >= next_step_time:
+                # Play notes at current step
                 notes_at_step = self.pattern.get_notes_at_step(self.current_step)
+                print(f"Step {self.current_step}: {len(notes_at_step)} notes")
 
                 for note in notes_at_step:
+                    print(f"Playing note {note.note} on channel {self.midi_channel}")
                     self.midi_output.send_note_on(self.midi_channel, note.note, note.velocity)
-            
-            time.sleep(0.01)  # 10ms sleep
+                    self._active_notes.add(note.note)
+                    current_step_notes.add(note.note)
+
+                # Schedule note-off for end of this step
+                if current_step_notes:
+                    note_off_time = next_step_time + step_duration * 0.9  # 90% of step duration
+
+                # Advance to next step
+                self.current_step = (self.current_step + 1) % self.pattern.length
+                next_step_time += step_duration
+
+                # Update pad colors from sequencer thread
+                if hasattr(self, '_update_pad_colors_callback') and self._update_pad_colors_callback:
+                    self._update_pad_colors_callback()
+
+            time.sleep(0.01)  # Small sleep to prevent CPU spinning

@@ -1,0 +1,51 @@
+{
+  "devices": [
+    {
+      "name": "Plinky",
+      "channel": 2,
+      "port": "PlinkySynth MIDI",
+      "cc_mappings": {
+        "Filter Cutoff": 74,
+        "Filter Resonance": 71,
+        "Envelope Attack": 73,
+        "Envelope Decay": 75
+      }
+    },
+    {
+      "name": "NTS-1",
+      "channel": 1,
+      "port": "NTS-1 digital kit SOUND",
+      "cc_mappings": {
+        "EG TYPE": 14,
+        "ATTACK": 16,
+        "RELEASE": 19,
+        "TREMOLLO DEPTH": 20,
+        "RATE": 21,
+        "OSC LFO RATE": 24,
+        "OSC LFO DEPTH": 26,
+        "MOD TIME": 28,
+        "MOD DEPTH": 29,
+        "DELAY TIME": 30,
+        "DELAY DEPTH": 31,
+        "DELAY MIX:": 33,
+        "REVERB TIME": 34,
+        "REVERB DEPTH": 35,
+        "REVERB MIX": 36,
+        "FILTER TYPE": 42,
+        "FILTER CUTOFF": 43,
+        "FILTER RESONANCE": 44,
+        "FILTER SWEEP DEPTH": 45,
+        "FILTER SWEEP RATE": 46,
+        "OSC TYPE": 53,
+        "OSC SHAPE": 54,
+        "OSC ALT": 55,
+        "MOD TYPE": 88,
+        "DELAY TYPE": 89,
+        "REVERB TYPE": 90,
+        "ARP PATTERN": 117,
+        "ARP INTERVALS": 118,
+        "ARP LENGTH": 119
+      }
+    }
+  ]
+}

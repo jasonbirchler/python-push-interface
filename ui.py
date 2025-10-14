@@ -10,6 +10,7 @@ class SequencerUI:
         self.selected_step = 0
         self.octave = 4
         self.cc_values = {}
+        self.app_ref = None  # Reference to main app for octave access
         
     def generate_pattern_display(self):
         try:
@@ -72,6 +73,12 @@ class SequencerUI:
             ctx.set_font_size(10)
             ctx.move_to(10, 110)
             ctx.show_text("Left/Right: Change Device | Encoders: Adjust CCs")
+
+            # Show octave in bottom right
+            ctx.set_font_size(12)
+            ctx.move_to(WIDTH - 80, HEIGHT - 10)
+            octave_val = self.app_ref.octave if self.app_ref else 4
+            ctx.show_text(f"Octave: {octave_val}")
 
             # Convert to numpy array
             buf = surface.get_data()

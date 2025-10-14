@@ -39,6 +39,7 @@ class SequencerApp:
 
         # Pass CC values to UI
         self.ui.cc_values = self.cc_values
+        self.ui.app_ref = self  # Give UI access to app for octave display
 
     def _setup_handlers(self):
         @push2_python.on_pad_pressed()
@@ -49,6 +50,7 @@ class SequencerApp:
                 step = (row - 6) * 8 + col  # Map to 0-15 (row 6 = steps 0-7, row 7 = steps 8-15)
                 if step < 16:
                     self.held_step_pad = step
+                    self._update_octave_buttons()
             # Top row for note input (12 notes)
             elif row == 0 and col < 12:
                 if self.held_step_pad is not None:
@@ -65,10 +67,12 @@ class SequencerApp:
                 if step < 16 and step == self.held_step_pad:
                     self.held_step_pad = None
                     self._update_pad_colors()
+                    self._update_octave_buttons()
 
 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
+            print(f"Button pressed: {button_name}")  # Debug to see actual button names
             if button_name == 'play' or 'play' in button_name.lower():
                 if self.sequencer.is_playing:
                     self.sequencer.stop()
@@ -86,12 +90,14 @@ class SequencerApp:
             elif 'right' in button_name.lower():
                 self.device_manager.next_device()
                 self._update_sequencer_for_device()
-            elif 'octave_up' in button_name.lower():
+            elif 'octave' in button_name.lower() and 'up' in button_name.lower():
                 self.octave = min(8, self.octave + 1)
                 self.ui.octave = self.octave
-            elif 'octave_down' in button_name.lower():
+                print(f"Octave up: {self.octave}")
+            elif 'octave' in button_name.lower() and 'down' in button_name.lower():
                 self.octave = max(1, self.octave - 1)
                 self.ui.octave = self.octave
+                print(f"Octave down: {self.octave}")
                 
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
@@ -178,6 +184,24 @@ class SequencerApp:
                 self.push.pads.set_pad_color((0, note_pad), 'blue')  # Available for input
             else:
                 self.push.pads.set_pad_color((0, note_pad), 'white')  # Always visible
+
+    def _update_octave_buttons(self):
+        # Light up octave buttons when step pad is held
+        try:
+            if self.held_step_pad is not None:
+                # Find octave button constants and light them up
+                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_UP'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, 'yellow')
+                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_DOWN'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, 'yellow')
+            else:
+                # Turn off octave buttons when no step pad held
+                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_UP'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, 'white')
+                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_DOWN'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, 'white')
+        except Exception as e:
+            print(f"Octave button update error: {e}")
 
 
 

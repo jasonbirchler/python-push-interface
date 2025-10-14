@@ -42,27 +42,39 @@ class SequencerUI:
                     ctx.show_text(str(cc_info["value"]))
                     cc_count += 1
 
-            # Debug: show how many CCs are being displayed
-            if cc_count < 8:
-                ctx.move_to(10, 35)
-                ctx.show_text(f"Showing {cc_count}/8 CCs")
-
-            # Draw title with device info
+            # Draw title with track and device info
             ctx.set_font_size(16)
             ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
             ctx.move_to(10, 45)
 
-            device = self.device_manager.get_current_device()
-            if device:
-                ctx.show_text(f"{device.name} - Ch{device.channel}")
+            current_track = self.app_ref.current_track if self.app_ref else 0
+            
+            # Check if we're in device selection mode
+            if hasattr(self.app_ref, 'device_selection_mode') and self.app_ref.device_selection_mode:
+                # Show device selection interface
+                device = self.device_manager.get_device_by_index(self.app_ref.device_selection_index)
+                if device:
+                    ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
+                    ctx.set_font_size(14)
+                    ctx.move_to(10, 65)
+                    ctx.show_text(f"> {device.name} (Ch {device.channel})")
+                    ctx.set_font_size(12)
+                    ctx.move_to(10, 85)
+                    ctx.show_text("Master Encoder: Browse | Select: Confirm")
             else:
-                ctx.show_text("No Device Selected")
+                # Normal mode - show current track info
+                if hasattr(self.app_ref, 'tracks') and self.app_ref.tracks[current_track] is not None:
+                    device = self.app_ref.tracks[current_track]
+                    ctx.show_text(f"Track {current_track+1} - {device.name} - Ch{device.channel}")
+                else:
+                    ctx.show_text(f"Track {current_track+1} - No Device")
 
-            # Show device navigation info
-            ctx.set_font_size(12)
-            ctx.move_to(10, 65)
-            device_info = f"Device {self.device_manager.current_device_index + 1}/{self.device_manager.get_device_count()}"
-            ctx.show_text(device_info)
+            # Show device navigation info (only in normal mode)
+            if not (hasattr(self.app_ref, 'device_selection_mode') and self.app_ref.device_selection_mode):
+                ctx.set_font_size(12)
+                ctx.move_to(10, 65)
+                device_info = f"Available Devices: {self.device_manager.get_device_count()}"
+                ctx.show_text(device_info)
 
             # Show BPM and play status
             ctx.move_to(10, 85)
@@ -70,9 +82,9 @@ class SequencerUI:
             ctx.show_text(f"BPM: {self.sequencer.bpm} | {status}")
 
             # Show controls
-            ctx.set_font_size(10)
-            ctx.move_to(10, 110)
-            ctx.show_text("Left/Right: Change Device | Encoders: Adjust CCs")
+            # ctx.set_font_size(10)
+            # ctx.move_to(10, 110)
+            # ctx.show_text("Col 0: Select Track | Cols 1-8: Steps | Cols 9+: Notes")
 
             # Show octave in bottom right
             ctx.set_font_size(12)

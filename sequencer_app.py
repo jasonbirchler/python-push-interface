@@ -19,13 +19,28 @@ class SequencerApp:
         self.octave = 4
         self.cc_values = {}  # Track CC values for current device
         self.last_encoder_time = 0  # Track when encoders were last used
+        self.tracks = [None] * 8  # Track assignments (None = empty, device = assigned)
+        self.track_colors = ['red', 'blue', 'yellow', 'purple', 'cyan', 'pink', 'orange', 'lime']  # Colors for tracks 0-7
+        self.current_track = 0
+        self.device_selection_mode = False
+        self.device_selection_index = 0
+        self.pad_states = {}  # Track current pad colors to avoid unnecessary updates
+        self.last_step = -1  # Track last step to minimize updates
+        self.encoder_accumulator = 0  # Accumulate encoder increments for device selection
+        self.encoder_threshold = 13  # num of increments required before encoder changes value
+
+        # Display refresh rate configuration
+        # shorter values means less time between cycles or faster refresh
+        # i.e. 1/rate = fps
+        self.fast_refresh_rate = 0.02  # for active use (encoders, device selection, playback)
+        self.normal_refresh_rate = 0.5  # for idle state
         
         # Connect to first available MIDI port
         print(f"Available MIDI ports: {self.midi_output.available_ports}")
         if not self.midi_output.connect():
             print("Warning: No MIDI output connected")
         else:
-            print(f"Connected to MIDI port: {self.midi_output.output_port.name if self.midi_output.output_port else 'None'}")
+            print(f"Connected to MIDI port: {list(self.midi_output.output_ports.keys())}")
         print(f"Loaded {self.device_manager.get_device_count()} devices from {self.device_manager.config_file}")
 
         # Set up Push 2 event handlers
@@ -54,10 +69,10 @@ class SequencerApp:
                     self._update_delete_button()
             # Top row for note input (12 notes)
             elif row == 0 and col < 12:
-                if self.held_step_pad is not None:
+                if self.held_step_pad is not None and self.tracks[self.current_track] is not None:
                     note = 60 + (self.octave - 4) * 12 + col  # C + octave offset
-                    print(f"Adding note {note} to step {self.held_step_pad}")
-                    self.sequencer.pattern.add_note(self.held_step_pad, note, velocity)
+                    print(f"Adding note {note} to track {self.current_track} step {self.held_step_pad}")
+                    self.sequencer.tracks[self.current_track].add_note(self.held_step_pad, note, velocity)
                     self._update_pad_colors()
 
         @push2_python.on_pad_released()
@@ -74,47 +89,78 @@ class SequencerApp:
 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
-            print(f"Button pressed: {button_name}")  # Debug to see actual button names
-            if button_name == 'play' or 'play' in button_name.lower():
+            print(f"Button pressed: '{button_name}'")  # Debug to see actual button names
+
+            if button_name == push2_python.constants.BUTTON_PLAY:
                 if self.sequencer.is_playing:
                     self.sequencer.stop()
                     push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
                 else:
                     self.sequencer.play()
                     push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'green')
-            elif button_name == 'stop' or 'stop' in button_name.lower():
+            elif button_name == push2_python.constants.BUTTON_STOP:
                 self.sequencer.stop()
                 self.sequencer.current_step = 0
                 push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
-            elif 'left' in button_name.lower():
+            elif button_name == push2_python.constants.BUTTON_LEFT:
                 self.device_manager.prev_device()
                 self._update_sequencer_for_device()
-            elif 'right' in button_name.lower():
+            elif button_name == push2_python.constants.BUTTON_RIGHT:
                 self.device_manager.next_device()
                 self._update_sequencer_for_device()
-            elif 'octave' in button_name.lower() and 'up' in button_name.lower():
+            elif button_name == push2_python.constants.BUTTON_OCTAVE_UP:
                 self.octave = min(8, self.octave + 1)
                 self.ui.octave = self.octave
                 print(f"Octave up: {self.octave}")
-            elif 'octave' in button_name.lower() and 'down' in button_name.lower():
+            elif button_name == push2_python.constants.BUTTON_OCTAVE_DOWN:
                 self.octave = max(1, self.octave - 1)
                 self.ui.octave = self.octave
                 print(f"Octave down: {self.octave}")
-            elif 'delete' in button_name.lower() and self.held_step_pad is not None:
-                if self.sequencer.pattern.get_notes_at_step(self.held_step_pad):
-                    self.sequencer.pattern.clear_step(self.held_step_pad)
+            elif button_name == push2_python.constants.BUTTON_DELETE and self.held_step_pad is not None:
+                if (self.tracks[self.current_track] is not None and 
+                    self.sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)):
+                    self.sequencer.tracks[self.current_track].clear_step(self.held_step_pad)
                     self._update_pad_colors()
-                    print(f"Cleared step {self.held_step_pad}")
+                    print(f"Cleared track {self.current_track} step {self.held_step_pad}")
+            elif button_name == push2_python.constants.BUTTON_ADD_TRACK:
+                print(f"Add track button detected: {button_name}")
+                self._add_track()
+            elif button_name == push2_python.constants.BUTTON_SELECT:
+                print(f"Select button detected: {button_name}")
+                if self.device_selection_mode:
+                    self._confirm_device_selection()
+            elif 'Lower Row' in button_name:
+                # Track selection buttons (Lower Row 1-8)
+                try:
+                    track_num = int(button_name.split()[-1]) - 1  # Convert to 0-based index
+                    if 0 <= track_num < 8 and self.tracks[track_num] is not None:
+                        self.current_track = track_num
+                        print(f"Selected track {track_num}")
+                        self._update_track_buttons()
+                        self._init_cc_values_for_track()
+                        # Force pad update when switching tracks
+                        self.pad_states = {}
+                        self._update_pad_colors()
+                except (ValueError, IndexError):
+                    print(f"Invalid track button: {button_name}")
                 
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
 
-            if 'tempo' in encoder_name.lower():
+            if encoder_name == push2_python.constants.ENCODER_TEMPO_ENCODER:
                 new_bpm = max(60, min(200, self.sequencer.bpm + increment))
                 self.sequencer.set_bpm(new_bpm)
-            elif 'master' in encoder_name.lower():
-                new_channel = max(1, min(16, self.sequencer.midi_channel + increment))
-                self.sequencer.set_midi_channel(new_channel)
+            elif encoder_name == push2_python.constants.ENCODER_MASTER_ENCODER and self.device_selection_mode:
+                # Accumulate encoder increments for more natural feel
+                self.encoder_accumulator += increment
+                threshold = self.encoder_threshold
+                
+                if abs(self.encoder_accumulator) >= threshold:
+                    device_count = self.device_manager.get_device_count()
+                    direction = 1 if self.encoder_accumulator > 0 else -1
+                    self.device_selection_index = (self.device_selection_index + direction) % device_count
+                    self.encoder_accumulator = 0  # Reset accumulator
+                    print(f"Device selection: {self.device_selection_index}")
             else:
                 # Handle CC encoders - map Push encoder names to our encoder slots
                 encoder_map = {
@@ -130,17 +176,8 @@ class SequencerApp:
                     print(f"Unhandled encoder: {encoder_name}")  # Debug
 
     def _update_sequencer_for_device(self):
-        device = self.device_manager.get_current_device()
-        if device:
-            self.sequencer.set_midi_channel(device.channel)
-            # Connect to device's preferred MIDI port if available
-            if device.port in self.midi_output.available_ports:
-                self.midi_output.disconnect()
-                self.midi_output.connect(device.port)
-            # Initialize CC values for this device
-            self._init_cc_values()
-            # Update UI with new CC values
-            self.ui.cc_values = self.cc_values
+        # This method is no longer needed for multi-track, but keeping for compatibility
+        pass
 
     def _init_cc_values(self):
         device = self.device_manager.get_current_device()
@@ -162,35 +199,128 @@ class SequencerApp:
             cc_info["value"] = new_value
 
             # Send CC message
-            print(f"Sending CC {cc_info['cc']} = {new_value} on channel {self.sequencer.midi_channel}")
-            self.midi_output.send_cc(self.sequencer.midi_channel, cc_info["cc"], new_value)
+            if self.tracks[self.current_track] is not None:
+                device = self.tracks[self.current_track]
+                print(f"Sending CC {cc_info['cc']} = {new_value} on channel {device.channel} port {device.port}")
+                self.midi_output.send_cc(device.channel, cc_info["cc"], new_value, device.port)
 
             # Update UI reference and trigger fast display update
             self.ui.cc_values = self.cc_values
             self.last_encoder_time = time.time()
 
+    def _add_track(self):
+        print("_add_track called")
+        # self.push.buttons.set_button_color(push2_python.constants.ADD_TRACK, 'white')
+        # Find next empty track slot
+        for i in range(8):
+            if self.tracks[i] is None:
+                self.current_track = i
+                self.device_selection_mode = True
+                self.device_selection_index = 0
+                self.encoder_accumulator = 0  # Reset accumulator
+                print(f"Adding track {i}, select device... (device_selection_mode = {self.device_selection_mode})")
+                self._update_track_buttons()
+                # Force UI update to show device selection
+                self.last_encoder_time = time.time()
+                return
+        print("All tracks are full")
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_ADD_TRACK, 'black')
+        
+    def _confirm_device_selection(self):
+        if self.device_selection_mode:
+            device = self.device_manager.get_device_by_index(self.device_selection_index)
+            if device:
+                self.tracks[self.current_track] = device
+                self.sequencer.set_track_channel(self.current_track, device.channel)
+                self.sequencer.set_track_port(self.current_track, device.port)
+                # Connect to device port if not already connected
+                self.midi_output.connect(device.port)
+                self.device_selection_mode = False
+                print(f"Track {self.current_track} assigned to {device.name} on port {device.port}")
+                self._update_track_buttons()
+                self._init_cc_values_for_track()
+                # Force pad update after confirming device
+                self.pad_states = {}
+                self._update_pad_colors()
+                
+    def _init_cc_values_for_track(self):
+        if self.tracks[self.current_track] is not None:
+            device = self.tracks[self.current_track]
+            self.cc_values = {}
+            cc_list = list(device.cc_mappings.items())[:8]
+            for i, (name, cc_num) in enumerate(cc_list):
+                self.cc_values[f"encoder_{i+1}"] = {
+                    "name": name,
+                    "cc": cc_num,
+                    "value": 64
+                }
+            self.ui.cc_values = self.cc_values
+            
+    def _update_track_buttons(self):
+        # Update track buttons (Lower Row 1-8)
+        track_button_constants = [
+            'BUTTON_LOWER_ROW_1', 'BUTTON_LOWER_ROW_2', 'BUTTON_LOWER_ROW_3', 'BUTTON_LOWER_ROW_4',
+            'BUTTON_LOWER_ROW_5', 'BUTTON_LOWER_ROW_6', 'BUTTON_LOWER_ROW_7', 'BUTTON_LOWER_ROW_8'
+        ]
+        
+        for i in range(8):
+            if self.tracks[i] is not None:
+                color = self.track_colors[i]  # Assigned track (track color)
+            else:
+                color = 'black'  # Empty track
+                
+            # Set the actual button color
+            button_name = track_button_constants[i]
+            if hasattr(push2_python.constants, button_name):
+                button_constant = getattr(push2_python.constants, button_name)
+                self.push.buttons.set_button_color(button_constant, color)
+            else:
+                print(f"Button constant {button_name} not found")
+            
     def _update_pad_colors(self):
-        # Update step sequencer pad colors (bottom 2 rows)
+        # Only update if step changed or forced update
+        if self.sequencer.is_playing and self.last_step == self.sequencer.current_step:
+            return  # Skip update if step hasn't changed
+            
+        self.last_step = self.sequencer.current_step
+        
+        # Clear all pads first (only if not initialized)
+        if not self.pad_states:
+            for row in range(8):
+                for col in range(8):
+                    self.push.pads.set_pad_color((row, col), 'black')
+                    self.pad_states[(row, col)] = 'black'
+        
+        # Update step sequencer pad colors (rows 6-7 only)
         for step in range(16):
             row = 6 + (step // 8)  # Row 6 for steps 0-7, row 7 for steps 8-15
             col = step % 8
 
-            # Determine color based on state
+            # Determine color based on state (priority order)
             if step == self.sequencer.current_step and self.sequencer.is_playing:
-                color = 'green'  # Current playing step
-            elif self.sequencer.pattern.get_notes_at_step(step):
-                color = 'orange'  # Step has notes
+                color = 'green'  # Current playing step (highest priority)
+            elif (self.tracks[self.current_track] is not None and
+                  self.sequencer.tracks[self.current_track].get_notes_at_step(step)):
+                color = self.track_colors[self.current_track]  # Step has notes (track color)
             else:
                 color = 'white'  # Empty step
 
-            self.push.pads.set_pad_color((row, col), color)
+            # Only update if color changed
+            if self.pad_states.get((row, col)) != color:
+                self.push.pads.set_pad_color((row, col), color)
+                self.pad_states[(row, col)] = color
 
-        # Update note input pads (top row, first 12 pads)
+        # Update note input pads (row 0, first 12 pads only)
         for note_pad in range(12):
-            if self.held_step_pad is not None:
-                self.push.pads.set_pad_color((0, note_pad), 'blue')  # Available for input
+            if self.held_step_pad is not None and self.tracks[self.current_track] is not None:
+                color = 'blue'  # Available for input
             else:
-                self.push.pads.set_pad_color((0, note_pad), 'white')  # Always visible
+                color = 'white'  # Always visible
+                
+            # Only update if color changed
+            if self.pad_states.get((0, note_pad)) != color:
+                self.push.pads.set_pad_color((0, note_pad), color)
+                self.pad_states[(0, note_pad)] = color
 
     def _update_octave_buttons(self):
         # Light up octave buttons when step pad is held
@@ -214,7 +344,8 @@ class SequencerApp:
         # Light up delete button when holding step pad with existing note
         try:
             if (self.held_step_pad is not None and 
-                self.sequencer.pattern.get_notes_at_step(self.held_step_pad)):
+                self.tracks[self.current_track] is not None and
+                self.sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)):
                 if hasattr(push2_python.constants, 'BUTTON_DELETE'):
                     self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, 'white')
             else:
@@ -226,30 +357,37 @@ class SequencerApp:
 
 
     def run(self):
-        print("Sequencer app running...")
+        print("Multi-Track Sequencer running...")
         print("Controls:")
-        print("- Bottom 2 rows: Step sequencer pads (hold + note to add)")
+        print("- Add Track button: Create new track")
+        print("- Track buttons (1-8): Select active track")
+        print("- Master encoder: Browse devices (when adding track)")
+        print("- Select button: Confirm device selection")
+        print("- Bottom 2 rows: Step sequencer (16 steps)")
         print("- Top row (first 12): Note input (C-B)")
-        print("- Play button: Start/stop")
-        print("- Left/Right arrows: Change device")
+        print("- Play button: Start/stop all tracks")
         print("- Octave up/down: Change octave")
-        print("- Encoders: Adjust BPM/Channel")
+        print("- Track encoders: Adjust CCs for current track")
 
         # Initialize button and pad colors after everything is set up
         time.sleep(1.0)  # Longer delay for Push hardware initialization
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_ADD_TRACK, 'white')
 
         # Initialize pad colors after hardware is ready
         self._update_pad_colors()
+        self._update_track_buttons()
 
         try:
             while True:
-                # Check if encoders were used recently for faster updates
+                # Check if encoders were used recently or sequencer is playing for faster updates
                 current_time = time.time()
-                if current_time - self.last_encoder_time < 2.0:  # Fast updates for 2 seconds after encoder use
-                    update_interval = 0.1  # 10fps for responsive encoder feedback
+                if (current_time - self.last_encoder_time < 2.0 or 
+                    self.sequencer.is_playing or 
+                    self.device_selection_mode):
+                    update_interval = self.fast_refresh_rate
                 else:
-                    update_interval = 1.0   # 1fps for normal operation
+                    update_interval = self.normal_refresh_rate
 
                 # Update display
                 frame = self.ui.get_current_frame()

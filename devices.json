@@ -46,6 +46,12 @@
         "ARP INTERVALS": 118,
         "ARP LENGTH": 119
       }
+    },
+    {
+      "name": "Another Device",
+      "channel": 3,
+      "port": "PlinkySynth MIDI",
+      "cc_mappings": {}
     }
   ]
 }

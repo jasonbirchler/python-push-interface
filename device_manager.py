@@ -16,7 +16,7 @@ class DeviceManager:
         self.devices: List[Device] = []
         self.current_device_index = 0
         self.load_devices()
-        
+
     def load_devices(self):
         if os.path.exists(self.config_file):
             try:
@@ -36,7 +36,7 @@ class DeviceManager:
                 self._create_default_devices()
         else:
             self._create_default_devices()
-            
+
     def _create_default_devices(self):
         self.devices = [
             Device(
@@ -61,7 +61,7 @@ class DeviceManager:
             )
         ]
         self.save_devices()
-        
+
     def save_devices(self):
         data = {
             "devices": [
@@ -76,19 +76,24 @@ class DeviceManager:
         }
         with open(self.config_file, 'w') as f:
             json.dump(data, f, indent=2)
-            
+
     def get_current_device(self) -> Optional[Device]:
         if self.devices and 0 <= self.current_device_index < len(self.devices):
             return self.devices[self.current_device_index]
         return None
-        
+
     def next_device(self):
         if self.devices:
             self.current_device_index = (self.current_device_index + 1) % len(self.devices)
-            
+
     def prev_device(self):
         if self.devices:
             self.current_device_index = (self.current_device_index - 1) % len(self.devices)
-            
+
     def get_device_count(self) -> int:
         return len(self.devices)
+
+    def get_device_by_index(self, index: int) -> Optional[Device]:
+        if 0 <= index < len(self.devices):
+            return self.devices[index]
+        return None

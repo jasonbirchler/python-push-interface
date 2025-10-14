@@ -3,7 +3,7 @@ from typing import Optional
 
 class MidiOutput:
     def __init__(self):
-        self.output_port: Optional[mido.ports.BaseOutput] = None
+        self.output_ports = {}  # Dictionary of port_name -> mido output port
         self.available_ports = []
         self._scan_ports()
         
@@ -14,48 +14,58 @@ class MidiOutput:
         if port_name is None and self.available_ports:
             port_name = self.available_ports[0]
             
-        if port_name:
+        if port_name and port_name not in self.output_ports:
             try:
-                self.output_port = mido.open_output(port_name)
+                self.output_ports[port_name] = mido.open_output(port_name)
+                print(f"Connected to MIDI port: {port_name}")
                 return True
             except Exception as e:
                 print(f"Failed to connect to MIDI port {port_name}: {e}")
                 return False
-        return False
+        return port_name in self.output_ports
         
-    def disconnect(self):
-        if self.output_port:
-            self.output_port.close()
-            self.output_port = None
+    def disconnect(self, port_name: Optional[str] = None):
+        if port_name:
+            if port_name in self.output_ports:
+                self.output_ports[port_name].close()
+                del self.output_ports[port_name]
+        else:
+            # Disconnect all ports
+            for port in self.output_ports.values():
+                port.close()
+            self.output_ports.clear()
             
-    def send_note_on(self, channel: int, note: int, velocity: int):
-        if self.output_port:
-            msg = mido.Message('note_on', channel=channel-1, note=note, velocity=velocity)
-            self.output_port.send(msg)
+    def send_note_on(self, channel: int, note: int, velocity: int, port_name: Optional[str] = None):
+        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
+        msg = mido.Message('note_on', channel=channel-1, note=note, velocity=velocity)
+        for port in target_ports:
+            port.send(msg)
 
             
-    def send_note_off(self, channel: int, note: int):
-        if self.output_port:
-            msg = mido.Message('note_off', channel=channel-1, note=note, velocity=0)
-            self.output_port.send(msg)
+    def send_note_off(self, channel: int, note: int, port_name: Optional[str] = None):
+        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
+        msg = mido.Message('note_off', channel=channel-1, note=note, velocity=0)
+        for port in target_ports:
+            port.send(msg)
             
-    def send_cc(self, channel: int, cc_number: int, value: int):
-        if self.output_port:
-            msg = mido.Message('control_change', channel=channel-1, control=cc_number, value=value)
-            self.output_port.send(msg)
+    def send_cc(self, channel: int, cc_number: int, value: int, port_name: Optional[str] = None):
+        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
+        msg = mido.Message('control_change', channel=channel-1, control=cc_number, value=value)
+        for port in target_ports:
+            port.send(msg)
 
     def send_clock(self):
-        if self.output_port:
-            msg = mido.Message('clock')
-            self.output_port.send(msg)
+        msg = mido.Message('clock')
+        for port in self.output_ports.values():
+            port.send(msg)
 
             
     def send_start(self):
-        if self.output_port:
-            msg = mido.Message('start')
-            self.output_port.send(msg)
+        msg = mido.Message('start')
+        for port in self.output_ports.values():
+            port.send(msg)
             
     def send_stop(self):
-        if self.output_port:
-            msg = mido.Message('stop')
-            self.output_port.send(msg)
+        msg = mido.Message('stop')
+        for port in self.output_ports.values():
+            port.send(msg)

@@ -51,6 +51,7 @@ class SequencerApp:
                 if step < 16:
                     self.held_step_pad = step
                     self._update_octave_buttons()
+                    self._update_delete_button()
             # Top row for note input (12 notes)
             elif row == 0 and col < 12:
                 if self.held_step_pad is not None:
@@ -68,6 +69,7 @@ class SequencerApp:
                     self.held_step_pad = None
                     self._update_pad_colors()
                     self._update_octave_buttons()
+                    self._update_delete_button()
 
 
         @push2_python.on_button_pressed()
@@ -98,6 +100,11 @@ class SequencerApp:
                 self.octave = max(1, self.octave - 1)
                 self.ui.octave = self.octave
                 print(f"Octave down: {self.octave}")
+            elif 'delete' in button_name.lower() and self.held_step_pad is not None:
+                if self.sequencer.pattern.get_notes_at_step(self.held_step_pad):
+                    self.sequencer.pattern.clear_step(self.held_step_pad)
+                    self._update_pad_colors()
+                    print(f"Cleared step {self.held_step_pad}")
                 
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
@@ -191,17 +198,30 @@ class SequencerApp:
             if self.held_step_pad is not None:
                 # Find octave button constants and light them up
                 if hasattr(push2_python.constants, 'BUTTON_OCTAVE_UP'):
-                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, 'yellow')
-                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_DOWN'):
-                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, 'yellow')
-            else:
-                # Turn off octave buttons when no step pad held
-                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_UP'):
                     self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, 'white')
                 if hasattr(push2_python.constants, 'BUTTON_OCTAVE_DOWN'):
                     self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, 'white')
+            else:
+                # Turn off octave buttons when no step pad held
+                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_UP'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, 'black')
+                if hasattr(push2_python.constants, 'BUTTON_OCTAVE_DOWN'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, 'black')
         except Exception as e:
             print(f"Octave button update error: {e}")
+
+    def _update_delete_button(self):
+        # Light up delete button when holding step pad with existing note
+        try:
+            if (self.held_step_pad is not None and 
+                self.sequencer.pattern.get_notes_at_step(self.held_step_pad)):
+                if hasattr(push2_python.constants, 'BUTTON_DELETE'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, 'white')
+            else:
+                if hasattr(push2_python.constants, 'BUTTON_DELETE'):
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, 'black')
+        except Exception as e:
+            print(f"Delete button update error: {e}")
 
 
 

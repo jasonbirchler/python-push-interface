@@ -26,6 +26,9 @@ class Pattern:
         
     def get_notes_at_step(self, step: int) -> List[Note]:
         return [n for n in self.notes if n.step == step]
+        
+    def clear_step(self, step: int):
+        self.notes = [n for n in self.notes if n.step != step]
 
 class Sequencer:
     def __init__(self, midi_output, bpm: int = 120):

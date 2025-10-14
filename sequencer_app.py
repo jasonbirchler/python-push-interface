@@ -23,9 +23,6 @@ class SequencerApp:
         # Set up Push 2 event handlers
         self._setup_handlers()
 
-        # Initialize button colors
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
-
     def _setup_handlers(self):
         @push2_python.on_pad_pressed()
         def on_pad_pressed(push, pad_n, pad_ij, velocity):
@@ -75,17 +72,24 @@ class SequencerApp:
         print("- Play button: Start/stop")
         print("- Encoders: Adjust BPM/Channel (check debug output for names)")
         
+        # Initialize button colors after everything is set up
+        time.sleep(0.1)  # Small delay for hardware initialization
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
+
+        frame_count = 0
         try:
             while True:
                 frame = self.ui.get_current_frame()
                 self.push.display.display_frame(frame, input_format=push2_python.constants.FRAME_FORMAT_RGB565)
+
+                # Refresh button color every 30 frames (once per second)
+                if frame_count % 30 == 0:
+                    color = 'green' if self.sequencer.is_playing else 'white'
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, color)
+
+                frame_count += 1
                 time.sleep(1.0/30)  # 30fps
         except KeyboardInterrupt:
             print("Shutting down...")
             self.sequencer.stop()
             self.midi_output.disconnect()
-
-if __name__ == "__main__":
-    use_simulator = '--simulator' in sys.argv or '-s' in sys.argv
-    app = SequencerApp(use_simulator=use_simulator)
-    app.run()

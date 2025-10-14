@@ -18,6 +18,7 @@ class SequencerApp:
         self.held_step_pad = None
         self.octave = 4
         self.cc_values = {}  # Track CC values for current device
+        self.last_encoder_time = 0  # Track when encoders were last used
         
         # Connect to first available MIDI port
         print(f"Available MIDI ports: {self.midi_output.available_ports}")
@@ -151,8 +152,9 @@ class SequencerApp:
             print(f"Sending CC {cc_info['cc']} = {new_value} on channel {self.sequencer.midi_channel}")
             self.midi_output.send_cc(self.sequencer.midi_channel, cc_info["cc"], new_value)
 
-            # Update UI reference
+            # Update UI reference and trigger fast display update
             self.ui.cc_values = self.cc_values
+            self.last_encoder_time = time.time()
 
     def _update_pad_colors(self):
         # Update step sequencer pad colors (bottom 2 rows)
@@ -198,11 +200,19 @@ class SequencerApp:
 
         try:
             while True:
-                # Always update display at slow rate to prevent blanking
+                # Check if encoders were used recently for faster updates
+                current_time = time.time()
+                if current_time - self.last_encoder_time < 2.0:  # Fast updates for 2 seconds after encoder use
+                    update_interval = 0.1  # 10fps for responsive encoder feedback
+                else:
+                    update_interval = 1.0   # 1fps for normal operation
+
+                # Update display
                 frame = self.ui.get_current_frame()
                 self.push.display.display_frame(frame, input_format=push2_python.constants.FRAME_FORMAT_RGB565)
 
-                time.sleep(1.0)  # Very slow 1fps to minimize communication
+                time.sleep(update_interval)
+
         except KeyboardInterrupt:
             print("Shutting down...")
             self.sequencer.stop()

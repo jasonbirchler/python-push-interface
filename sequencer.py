@@ -58,16 +58,34 @@ class Sequencer:
             self._track_ports = {}
         self._track_ports[track] = port_name
 
+    def set_track_device(self, track: int, device):
+        if not hasattr(self, '_track_devices'):
+            self._track_devices = {}
+        self._track_devices[track] = device
+
+    def _send_transport_to_active_devices(self, message_type):
+        """Send start/stop only to devices with send_transport=true"""
+        if not hasattr(self, '_track_devices'):
+            return
+
+        for track_idx, device in self._track_devices.items():
+            if hasattr(device, 'send_transport') and device.send_transport:
+                port_name = getattr(self, '_track_ports', {}).get(track_idx)
+                if message_type == 'start':
+                    self.midi_output.send_start(port_name)
+                elif message_type == 'stop':
+                    self.midi_output.send_stop(port_name)
+
     def set_current_track(self, track: int):
         if 0 <= track < 8:
             self.current_track = track
 
     def play(self):
         if not self.is_playing:
-
             self.is_playing = True
             self._stop_event.clear()
-            self.midi_output.send_start()
+            # Send start only to devices that want transport messages
+            self._send_transport_to_active_devices('start')
             self._thread = threading.Thread(target=self._play_loop)
             self._thread.start()
 
@@ -82,7 +100,8 @@ class Sequencer:
                 self.midi_output.send_note_off(channel, note, port_name)
             self._active_notes.clear()
 
-            self.midi_output.send_stop()
+            # Send stop only to devices that want transport messages
+            self._send_transport_to_active_devices('stop')
             if self._thread:
                 self._thread.join()
 
@@ -102,7 +121,7 @@ class Sequencer:
                     self._active_notes.discard((channel, note, port_name))
                 current_step_notes.clear()
                 note_off_time = None
-            
+
             # Check if it's time for the next step
             if current_time >= next_step_time:
                 # Play notes for all tracks at current step
@@ -110,7 +129,7 @@ class Sequencer:
                 for track_idx, track_pattern in enumerate(self.tracks):
                     notes_at_step = track_pattern.get_notes_at_step(self.current_step)
                     total_notes += len(notes_at_step)
-                    
+
                     for note in notes_at_step:
                         channel = self.track_channels[track_idx]
                         # Get device port for this track (passed from app)

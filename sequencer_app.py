@@ -235,6 +235,7 @@ class SequencerApp:
                     self.tracks[self.current_track] = device
                     self.sequencer.set_track_channel(self.current_track, device.channel)
                     self.sequencer.set_track_port(self.current_track, device.port)
+                    self.sequencer.set_track_device(self.current_track, device)
                     self.device_selection_mode = False
                     print(f"Track {self.current_track} assigned to {device.name} on port {device.port}")
                     self._update_track_buttons()

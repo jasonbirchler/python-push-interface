@@ -2,8 +2,9 @@
   "devices": [
     {
       "name": "Plinky",
-      "channel": 2,
+      "channel": 1,
       "port": "plinky",
+      "send_transport": true,
       "cc_mappings": {
         "Filter Cutoff": 74,
         "Filter Resonance": 71,
@@ -15,6 +16,7 @@
       "name": "NTS-1",
       "channel": 1,
       "port": "NTS-1",
+      "send_transport": false,
       "cc_mappings": {
         "EG TYPE": 14,
         "ATTACK": 16,
@@ -51,6 +53,7 @@
       "name": "Another Device",
       "channel": 3,
       "port": "pisound",
+      "send_transport": true,
       "cc_mappings": {}
     }
   ]

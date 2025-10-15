@@ -5,10 +5,55 @@ class MidiOutput:
     def __init__(self):
         self.output_ports = {}  # Dictionary of port_name -> mido output port
         self.available_ports = []
+        self.input_ports = {}
+        self.sequencer = None  # Will be set by sequencer
         self._scan_ports()
+        self._setup_midi_input()
         
     def _scan_ports(self):
         self.available_ports = mido.get_output_names()
+        
+    def _setup_midi_input(self):
+        """Setup MIDI input for clock sync"""
+        try:
+            import threading
+            input_names = mido.get_input_names()
+            for name in input_names:
+                if 'Push' not in name and 'Midronome' in name:  # Only listen to Midronome for now
+                    try:
+                        port = mido.open_input(name)
+                        self.input_ports[name] = port
+                        self._monitor_input(name, port)
+                        print(f"Listening for MIDI clock on: {name}")
+                        break  # Only connect to first Midronome port
+                    except Exception as e:
+                        print(f"Failed to open input {name}: {e}")
+        except Exception as e:
+            print(f"MIDI input setup failed: {e}")
+            
+    def _monitor_input(self, port_name, port):
+        """Monitor MIDI input for clock messages"""
+        print(f"Starting MIDI monitor thread for {port_name}")
+        try:
+            port.callback = self._handle_midi_message
+        except Exception as e:
+            print(f"MIDI input monitor error on {port_name}: {e}")
+            
+    def _handle_midi_message(self, msg):
+        """Handle incoming MIDI message"""
+        if self.sequencer:
+            if msg.type == 'clock':
+                self.sequencer.handle_midi_clock()
+            elif msg.type == 'start':
+                print(f"MIDI Start received")
+                self.sequencer.handle_midi_start()
+            elif msg.type == 'stop':
+                print(f"MIDI Stop received")
+                self.sequencer.handle_midi_stop()
+            
+    def set_sequencer(self, sequencer):
+        """Set sequencer reference for clock handling"""
+        self.sequencer = sequencer
         
     def connect(self, port_name: Optional[str] = None):
         if port_name is None and self.available_ports:

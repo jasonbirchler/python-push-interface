@@ -42,6 +42,12 @@ class Sequencer:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._active_notes = set()  # Track active notes
+        
+        # MIDI clock sync
+        self.external_sync = False
+        self._clock_count = 0
+        self._last_clock_time = None
+        self._clock_times = []
 
     def set_bpm(self, bpm: int):
         self.bpm = bpm
@@ -75,6 +81,52 @@ class Sequencer:
                     self.midi_output.send_start(port_name)
                 elif message_type == 'stop':
                     self.midi_output.send_stop(port_name)
+                    
+    def handle_midi_clock(self):
+        """Handle incoming MIDI clock pulse"""
+        current_time = time.time()
+        self._clock_count += 1
+        
+        # Debug: Print every 96th clock (whole note) to reduce noise
+        if self._clock_count % 96 == 0:
+            print(f"External sync: BPM {self.bpm}")
+        
+        # Forward clock to all devices
+        self.midi_output.send_clock()
+        
+        # Calculate BPM from clock timing (24 clocks per quarter note)
+        if self._last_clock_time:
+            self._clock_times.append(current_time - self._last_clock_time)
+            if len(self._clock_times) > 24:
+                self._clock_times.pop(0)
+                
+            if len(self._clock_times) >= 24:
+                avg_interval = sum(self._clock_times) / len(self._clock_times)
+                quarter_note_time = avg_interval * 24
+                new_bpm = int(60.0 / quarter_note_time)
+                if abs(new_bpm - self.bpm) > 1:  # Only update if significant change
+                    self.bpm = new_bpm
+                    print(f"BPM updated to: {self.bpm}")
+                
+        self._last_clock_time = current_time
+        
+        # Trigger step on every 6th clock (16th notes)
+        if self.external_sync and self.is_playing and self._clock_count % 6 == 0:
+            self._trigger_step()
+            
+    def handle_midi_start(self):
+        """Handle incoming MIDI start"""
+        print("MIDI Start received - switching to external sync")
+        self._clock_count = 0
+        self.current_step = 0
+        self.external_sync = True
+        self.play()
+        
+    def handle_midi_stop(self):
+        """Handle incoming MIDI stop"""
+        print("MIDI Stop received - switching to internal sync")
+        self.external_sync = False
+        self.stop()
 
     def set_current_track(self, track: int):
         if 0 <= track < 8:
@@ -122,35 +174,36 @@ class Sequencer:
                 current_step_notes.clear()
                 note_off_time = None
 
-            # Check if it's time for the next step
-            if current_time >= next_step_time:
-                # Play notes for all tracks at current step
-                total_notes = 0
-                for track_idx, track_pattern in enumerate(self.tracks):
-                    notes_at_step = track_pattern.get_notes_at_step(self.current_step)
-                    total_notes += len(notes_at_step)
-
-                    for note in notes_at_step:
-                        channel = self.track_channels[track_idx]
-                        # Get device port for this track (passed from app)
-                        port_name = getattr(self, '_track_ports', {}).get(track_idx)
-                        print(f"Track {track_idx} Step {self.current_step}: Playing note {note.note} on channel {channel} port {port_name}")
-                        self.midi_output.send_note_on(channel, note.note, note.velocity, port_name)
-                        self._active_notes.add((channel, note.note, port_name))
-                        current_step_notes.add((channel, note.note, port_name))
-
-                print(f"Step {self.current_step}: {total_notes} total notes across all tracks")
-
+            # Check if it's time for the next step (only for internal timing)
+            if not self.external_sync and current_time >= next_step_time:
+                self._trigger_step()
                 # Schedule note-off for end of this step
                 if current_step_notes:
-                    note_off_time = next_step_time + step_duration * 0.9  # 90% of step duration
-
-                # Advance to next step
-                self.current_step = (self.current_step + 1) % 16  # Fixed 16 steps
+                    note_off_time = next_step_time + step_duration * 0.9
                 next_step_time += step_duration
 
-                # Update pad colors from sequencer thread
-                if hasattr(self, '_update_pad_colors_callback') and self._update_pad_colors_callback:
-                    self._update_pad_colors_callback()
-
             time.sleep(0.01)  # Small sleep to prevent CPU spinning
+            
+    def _trigger_step(self):
+        """Trigger notes for current step"""
+        # Play notes for all tracks at current step
+        total_notes = 0
+        for track_idx, track_pattern in enumerate(self.tracks):
+            notes_at_step = track_pattern.get_notes_at_step(self.current_step)
+            total_notes += len(notes_at_step)
+
+            for note in notes_at_step:
+                channel = self.track_channels[track_idx]
+                port_name = getattr(self, '_track_ports', {}).get(track_idx)
+                print(f"Track {track_idx} Step {self.current_step}: Playing note {note.note} on channel {channel} port {port_name}")
+                self.midi_output.send_note_on(channel, note.note, note.velocity, port_name)
+                self._active_notes.add((channel, note.note, port_name))
+
+        print(f"Step {self.current_step}: {total_notes} total notes across all tracks")
+        
+        # Advance to next step
+        self.current_step = (self.current_step + 1) % 16
+        
+        # Update pad colors
+        if hasattr(self, '_update_pad_colors_callback') and self._update_pad_colors_callback:
+            self._update_pad_colors_callback()

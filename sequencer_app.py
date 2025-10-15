@@ -13,6 +13,7 @@ class SequencerApp:
         self.midi_output = MidiOutput()
         self.device_manager = DeviceManager()
         self.sequencer = Sequencer(self.midi_output)
+        self.midi_output.set_sequencer(self.sequencer)  # Enable clock sync
         self.ui = SequencerUI(self.sequencer, self.device_manager)
         self.ui.octave = 4  # Pass octave to UI
         self.held_step_pad = None

@@ -15,12 +15,24 @@ class MidiOutput:
             port_name = self.available_ports[0]
             
         if port_name and port_name not in self.output_ports:
+            # Try exact match first
+            actual_port = port_name
+            if port_name not in self.available_ports:
+                # Try fuzzy matching - find port containing the search term
+                matches = [p for p in self.available_ports if port_name.lower() in p.lower()]
+                if matches:
+                    actual_port = matches[0]
+                    print(f"Fuzzy matched '{port_name}' to '{actual_port}'")
+                else:
+                    print(f"No port found matching '{port_name}'")
+                    return False
+            
             try:
-                self.output_ports[port_name] = mido.open_output(port_name)
-                print(f"Connected to MIDI port: {port_name}")
+                self.output_ports[port_name] = mido.open_output(actual_port)  # Use original name as key
+                print(f"Connected to MIDI port: {actual_port}")
                 return True
             except Exception as e:
-                print(f"Failed to connect to MIDI port {port_name}: {e}")
+                print(f"Failed to connect to MIDI port {actual_port}: {e}")
                 return False
         return port_name in self.output_ports
         

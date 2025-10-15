@@ -3,7 +3,7 @@
     {
       "name": "Plinky",
       "channel": 2,
-      "port": "PlinkySynth MIDI",
+      "port": "plinky",
       "cc_mappings": {
         "Filter Cutoff": 74,
         "Filter Resonance": 71,
@@ -14,7 +14,7 @@
     {
       "name": "NTS-1",
       "channel": 1,
-      "port": "NTS-1 digital kit SOUND",
+      "port": "NTS-1",
       "cc_mappings": {
         "EG TYPE": 14,
         "ATTACK": 16,
@@ -50,7 +50,7 @@
     {
       "name": "Another Device",
       "channel": 3,
-      "port": "PlinkySynth MIDI",
+      "port": "pisound",
       "cc_mappings": {}
     }
   ]

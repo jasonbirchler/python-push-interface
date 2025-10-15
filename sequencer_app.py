@@ -230,18 +230,21 @@ class SequencerApp:
         if self.device_selection_mode:
             device = self.device_manager.get_device_by_index(self.device_selection_index)
             if device:
-                self.tracks[self.current_track] = device
-                self.sequencer.set_track_channel(self.current_track, device.channel)
-                self.sequencer.set_track_port(self.current_track, device.port)
-                # Connect to device port if not already connected
-                self.midi_output.connect(device.port)
-                self.device_selection_mode = False
-                print(f"Track {self.current_track} assigned to {device.name} on port {device.port}")
-                self._update_track_buttons()
-                self._init_cc_values_for_track()
-                # Force pad update after confirming device
-                self.pad_states = {}
-                self._update_pad_colors()
+                # Try to connect to device port first
+                if self.midi_output.connect(device.port):
+                    self.tracks[self.current_track] = device
+                    self.sequencer.set_track_channel(self.current_track, device.channel)
+                    self.sequencer.set_track_port(self.current_track, device.port)
+                    self.device_selection_mode = False
+                    print(f"Track {self.current_track} assigned to {device.name} on port {device.port}")
+                    self._update_track_buttons()
+                    self._init_cc_values_for_track()
+                    # Force pad update after confirming device
+                    self.pad_states = {}
+                    self._update_pad_colors()
+                else:
+                    print(f"Failed to connect to {device.name} - track not assigned")
+                    # Stay in device selection mode to try another device
                 
     def _init_cc_values_for_track(self):
         if self.tracks[self.current_track] is not None:

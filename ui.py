@@ -77,33 +77,34 @@ class SequencerUI:
                 return frame.transpose()
             elif hasattr(self.app_ref, 'session_mode') and self.app_ref.session_mode:
                 # Show session management interface
-                ctx.set_font_size(16)
-                ctx.move_to(10, 25)
-                ctx.show_text("SESSION OPTIONS")
-                
-                # Show button labels
-                ctx.set_font_size(10)
+                # Show button labels at TOP (like CC controls)
+                ctx.set_font_size(8)
                 button_width = WIDTH // 8
                 
                 # Button 1 - Open
-                ctx.move_to(5, 50)
+                ctx.move_to(5, 12)
                 ctx.show_text("Open")
-                ctx.move_to(5, 60)
+                ctx.move_to(5, 22)
                 ctx.show_text("project")
                 
                 # Button 2 - Save
-                ctx.move_to(button_width + 5, 50)
+                ctx.move_to(button_width + 5, 12)
                 ctx.show_text("Save")
                 
                 # Button 3 - Save New
-                ctx.move_to(button_width * 2 + 5, 50)
+                ctx.move_to(button_width * 2 + 5, 12)
                 ctx.show_text("Save")
-                ctx.move_to(button_width * 2 + 5, 60)
+                ctx.move_to(button_width * 2 + 5, 22)
                 ctx.show_text("new")
                 
                 # Button 8 - OK
-                ctx.move_to(button_width * 7 + 5, 50)
+                ctx.move_to(button_width * 7 + 5, 12)
                 ctx.show_text("OK")
+                
+                # Show title in middle
+                ctx.set_font_size(16)
+                ctx.move_to(10, 50)
+                ctx.show_text("SESSION OPTIONS")
                 
                 # Show current action and project selection
                 ctx.set_font_size(12)
@@ -115,9 +116,9 @@ class SequencerUI:
                         ctx.show_text(f"Open: {project_name}")
                 elif self.app_ref.session_action == 'save':
                     if self.app_ref.project_manager.current_project_file:
-                        ctx.show_text(f"Save: {self.app_ref.project_manager.current_project_file}?")
+                        ctx.show_text(f"Save: {self.app_ref.project_manager.current_project_file}")
                     else:
-                        ctx.show_text("Save: New project?")
+                        ctx.show_text("Save: New project")
                 elif self.app_ref.session_action == 'save_new':
                     ctx.show_text("Save as new project")
                 

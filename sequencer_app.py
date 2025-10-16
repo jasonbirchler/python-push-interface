@@ -123,7 +123,7 @@ class SequencerApp:
                     push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
                 else:
                     self.sequencer.play()
-                    push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'green', push2_python.constants.ANIMATION_BLINKING_8TH)
+                    push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'green', push2_python.constants.ANIMATION_PULSING_QUARTER)
             elif button_name == push2_python.constants.BUTTON_STOP:
                 self.sequencer.stop()
                 self.sequencer.current_step = 0

@@ -41,6 +41,11 @@ class SequencerApp:
         self.project_selection_mode = False
         self.project_selection_index = 0
         self.browse_button_held = False
+        
+        # Session management
+        self.session_mode = False
+        self.session_action = None  # 'open', 'save', 'save_new'
+        self.session_project_index = 0
 
         # Display refresh rate configuration
         # shorter values means less time between cycles or faster refresh
@@ -106,11 +111,7 @@ class SequencerApp:
                     self._confirm_clock_selection()
                 self.metronome_button_held = False
                 self.clock_selection_mode = False
-            elif button_name == push2_python.constants.BUTTON_BROWSE:
-                if self.project_selection_mode:
-                    self._confirm_project_selection()
-                self.browse_button_held = False
-                self.project_selection_mode = False
+
                 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
@@ -160,22 +161,37 @@ class SequencerApp:
                 self.clock_selection_index = 0
                 print("Clock source selection mode")
                 self.last_encoder_time = time.time()
+            elif button_name == push2_python.constants.BUTTON_SESSION:
+                # Toggle session management mode
+                self.session_mode = not self.session_mode
+                if self.session_mode:
+                    self.session_action = None
+                    print("Session mode")
+                    self.last_encoder_time = time.time()
+                else:
+                    print("Exiting session mode")
+            elif 'Upper Row' in button_name and self.session_mode:
+                # Handle upper row buttons in session mode
+                match button_name:
+                    case push2_python.constants.BUTTON_UPPER_ROW_1:  # Open
+                        self.session_action = 'open'
+                        self.session_project_index = 0
+                        print("Session: Open project")
+                    case push2_python.constants.BUTTON_UPPER_ROW_2:  # Save
+                        self.session_action = 'save'
+                        print("Session: Save project")
+                    case push2_python.constants.BUTTON_UPPER_ROW_3:  # Save New
+                        self.session_action = 'save_new'
+                        print("Session: Save new project")
+                    case push2_python.constants.BUTTON_UPPER_ROW_8:  # OK
+                        self._execute_session_action()
+                    case _:
+                        print(f"Invalid session button: {button_name}")
             elif button_name == push2_python.constants.BUTTON_USER:
-                # Save project
+                # Quick save (old behavior for compatibility)
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 filename = f"project_{timestamp}"
                 self.project_manager.save_project(filename)
-            elif button_name == push2_python.constants.BUTTON_BROWSE:
-                # Enter project selection mode
-                projects = self.project_manager.list_projects()
-                if projects:
-                    self.browse_button_held = True
-                    self.project_selection_mode = True
-                    self.project_selection_index = 0
-                    print("Project selection mode")
-                    self.last_encoder_time = time.time()
-                else:
-                    print("No projects found")
             elif 'Lower Row' in button_name:
                 # Track selection buttons (Lower Row 1-8)
                 try:
@@ -220,19 +236,20 @@ class SequencerApp:
                     self.encoder_accumulator = 0
                     print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
                     self.last_encoder_time = time.time()
-            elif encoder_name == push2_python.constants.ENCODER_MASTER_ENCODER and self.project_selection_mode:
-                # Project selection
+            elif encoder_name == push2_python.constants.ENCODER_TRACK1_ENCODER and self.session_mode and self.session_action == 'open':
+                # Project browsing in session mode
                 self.encoder_accumulator += increment
                 threshold = self.encoder_threshold
                 
                 if abs(self.encoder_accumulator) >= threshold:
                     projects = self.project_manager.list_projects()
-                    project_count = len(projects)
-                    direction = 1 if self.encoder_accumulator > 0 else -1
-                    self.project_selection_index = (self.project_selection_index + direction) % project_count
-                    self.encoder_accumulator = 0
-                    print(f"Project selection: {projects[self.project_selection_index]}")
-                    self.last_encoder_time = time.time()
+                    if projects:
+                        project_count = len(projects)
+                        direction = 1 if self.encoder_accumulator > 0 else -1
+                        self.session_project_index = (self.session_project_index + direction) % project_count
+                        self.encoder_accumulator = 0
+                        print(f"Session project: {projects[self.session_project_index]}")
+                        self.last_encoder_time = time.time()
             else:
                 # Handle CC encoders - map Push encoder names to our encoder slots
                 encoder_map = {
@@ -282,7 +299,6 @@ class SequencerApp:
 
     def _add_track(self):
         print("_add_track called")
-        # self.push.buttons.set_button_color(push2_python.constants.ADD_TRACK, 'white')
         # Find next empty track slot
         for i in range(8):
             if self.tracks[i] is None:
@@ -340,15 +356,32 @@ class SequencerApp:
             print(f"Clock source selected: {selected_source}")
             self.clock_selection_mode = False
             
-    def _confirm_project_selection(self):
-        """Confirm project selection and load"""
-        if self.project_selection_mode:
+    def _execute_session_action(self):
+        """Execute the selected session action"""
+        if self.session_action == 'open':
             projects = self.project_manager.list_projects()
             if projects:
-                selected_project = projects[self.project_selection_index]
+                selected_project = projects[self.session_project_index]
                 self.project_manager.load_project(selected_project)
                 print(f"Project loaded: {selected_project}")
-            self.project_selection_mode = False
+        elif self.session_action == 'save':
+            if self.project_manager.current_project_file:
+                # Save to existing file
+                self.project_manager.save_project(self.project_manager.current_project_file)
+            else:
+                # Save as new file
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                filename = f"project_{timestamp}"
+                self.project_manager.save_project(filename)
+        elif self.session_action == 'save_new':
+            # Always save as new file
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"project_{timestamp}"
+            self.project_manager.save_project(filename)
+        
+        # Exit session mode after action
+        self.session_mode = False
+        self.session_action = None
             
     def _update_track_buttons(self):
         # Update track buttons (Lower Row 1-8)
@@ -493,3 +526,4 @@ class SequencerApp:
             print("Shutting down...")
             self.sequencer.stop()
             self.midi_output.disconnect()
+            self.push.pads.set_all_pads_to_black()

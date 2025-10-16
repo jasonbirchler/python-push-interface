@@ -6,6 +6,7 @@ class ProjectManager:
     def __init__(self, sequencer_app):
         self.app = sequencer_app
         self.projects_dir = os.path.expanduser("~/push2-sequencer-projects")
+        self.current_project_file = None  # Track currently loaded project
         self._ensure_projects_dir()
         
     def _ensure_projects_dir(self):
@@ -55,6 +56,7 @@ class ProjectManager:
         filepath = os.path.join(self.projects_dir, f"{filename}.json")
         with open(filepath, 'w') as f:
             json.dump(project_data, f, indent=2)
+        self.current_project_file = filename
         print(f"Project saved: {filepath}")
         
     def load_project(self, filename):
@@ -107,6 +109,7 @@ class ProjectManager:
             self.app.pad_states = {}
             self.app._update_pad_colors()
             
+            self.current_project_file = filename
             print(f"Project loaded: {filepath}")
             return True
             
@@ -127,6 +130,7 @@ class ProjectManager:
         # Reset to defaults
         self.app.current_track = 0
         self.app.sequencer.set_bpm(120)
+        self.current_project_file = None
         
     def _find_device_by_name(self, name):
         """Find device by name in device manager"""

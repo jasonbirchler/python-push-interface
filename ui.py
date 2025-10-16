@@ -75,18 +75,52 @@ class SequencerUI:
                 buf = surface.get_data()
                 frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
                 return frame.transpose()
-            elif hasattr(self.app_ref, 'project_selection_mode') and self.app_ref.project_selection_mode:
-                # Show ONLY project selection interface
-                ctx.show_text("SELECT PROJECT")
-                ctx.set_font_size(14)
-                ctx.move_to(10, 65)
-                projects = self.app_ref.project_manager.list_projects()
-                if projects:
-                    project_name = projects[self.app_ref.project_selection_index]
-                    ctx.show_text(f"> {project_name}")
+            elif hasattr(self.app_ref, 'session_mode') and self.app_ref.session_mode:
+                # Show session management interface
+                ctx.set_font_size(16)
+                ctx.move_to(10, 25)
+                ctx.show_text("SESSION OPTIONS")
+                
+                # Show button labels
+                ctx.set_font_size(10)
+                button_width = WIDTH // 8
+                
+                # Button 1 - Open
+                ctx.move_to(5, 50)
+                ctx.show_text("Open")
+                ctx.move_to(5, 60)
+                ctx.show_text("project")
+                
+                # Button 2 - Save
+                ctx.move_to(button_width + 5, 50)
+                ctx.show_text("Save")
+                
+                # Button 3 - Save New
+                ctx.move_to(button_width * 2 + 5, 50)
+                ctx.show_text("Save")
+                ctx.move_to(button_width * 2 + 5, 60)
+                ctx.show_text("new")
+                
+                # Button 8 - OK
+                ctx.move_to(button_width * 7 + 5, 50)
+                ctx.show_text("OK")
+                
+                # Show current action and project selection
                 ctx.set_font_size(12)
                 ctx.move_to(10, 85)
-                ctx.show_text("Master Encoder: Browse | Release: Confirm")
+                if self.app_ref.session_action == 'open':
+                    projects = self.app_ref.project_manager.list_projects()
+                    if projects:
+                        project_name = projects[self.app_ref.session_project_index]
+                        ctx.show_text(f"Open: {project_name}")
+                elif self.app_ref.session_action == 'save':
+                    if self.app_ref.project_manager.current_project_file:
+                        ctx.show_text(f"Save: {self.app_ref.project_manager.current_project_file}?")
+                    else:
+                        ctx.show_text("Save: New project")
+                elif self.app_ref.session_action == 'save_new':
+                    ctx.show_text("Save as new project")
+                
                 # Return early to avoid showing other info
                 buf = surface.get_data()
                 frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
@@ -113,11 +147,6 @@ class SequencerUI:
             if hasattr(self.app_ref, 'midi_output') and self.app_ref.midi_output.selected_clock_source:
                 clock_source = self.app_ref.midi_output.selected_clock_source
             ctx.show_text(f"Clock: {clock_source} | BPM: {self.sequencer.bpm} | {status}")
-
-            # Show controls
-            # ctx.set_font_size(10)
-            # ctx.move_to(10, 110)
-            # ctx.show_text("Col 0: Select Track | Cols 1-8: Steps | Cols 9+: Notes")
 
             # Show octave in bottom right
             ctx.set_font_size(12)

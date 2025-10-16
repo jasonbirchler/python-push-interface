@@ -23,44 +23,27 @@ class SequencerUI:
             ctx.rectangle(0, 0, WIDTH, HEIGHT)
             ctx.fill()
             
-            # Show CC encoder labels and values at TOP
             ctx.set_source_rgb(1, 1, 1)
-            ctx.set_font_size(8)
-            encoder_width = WIDTH // 8
-            cc_count = 0
-            for i in range(8):
-                encoder_key = f"encoder_{i+1}"
-                if hasattr(self, 'cc_values') and encoder_key in self.cc_values:
-                    cc_info = self.cc_values[encoder_key]
-                    x = i * encoder_width + 2
-                    # CC name (truncated if too long)
-                    name = cc_info["name"][:10] if len(cc_info["name"]) > 10 else cc_info["name"]
-                    ctx.move_to(x, 12)
-                    ctx.show_text(name)
-                    # CC value
-                    ctx.move_to(x, 24)
-                    ctx.show_text(str(cc_info["value"]))
-                    cc_count += 1
-
-            # Draw title with track and device info
-            ctx.set_font_size(16)
-            ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-            ctx.move_to(10, 45)
-
             current_track = self.app_ref.current_track if self.app_ref else 0
             
             # Check if we're in device selection mode
             if hasattr(self.app_ref, 'device_selection_mode') and self.app_ref.device_selection_mode:
-                # Show device selection interface
+                # Show ONLY device selection interface
+                ctx.set_font_size(16)
+                ctx.move_to(10, 45)
+                ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
                 device = self.device_manager.get_device_by_index(self.app_ref.device_selection_index)
                 if device:
-                    ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
                     ctx.set_font_size(14)
                     ctx.move_to(10, 65)
                     ctx.show_text(f"> {device.name} (Ch {device.channel})")
                     ctx.set_font_size(12)
                     ctx.move_to(10, 85)
                     ctx.show_text("Master Encoder: Browse | Select: Confirm")
+                # Return early to avoid showing other info
+                buf = surface.get_data()
+                frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
+                return frame.transpose()
             elif hasattr(self.app_ref, 'clock_selection_mode') and self.app_ref.clock_selection_mode:
                 # Show ONLY clock source selection interface
                 ctx.show_text("SELECT CLOCK SOURCE")
@@ -127,6 +110,29 @@ class SequencerUI:
                 frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
                 return frame.transpose()
             else:
+                # Normal mode - show CC encoder labels and values at TOP
+                ctx.set_font_size(8)
+                encoder_width = WIDTH // 8
+                cc_count = 0
+                for i in range(8):
+                    encoder_key = f"encoder_{i+1}"
+                    if hasattr(self, 'cc_values') and encoder_key in self.cc_values:
+                        cc_info = self.cc_values[encoder_key]
+                        x = i * encoder_width + 2
+                        # CC name (truncated if too long)
+                        name = cc_info["name"][:10] if len(cc_info["name"]) > 10 else cc_info["name"]
+                        ctx.move_to(x, 12)
+                        ctx.show_text(name)
+                        # CC value
+                        ctx.move_to(x, 24)
+                        ctx.show_text(str(cc_info["value"]))
+                        cc_count += 1
+                
+                # Draw title with track and device info
+                ctx.set_font_size(16)
+                ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+                ctx.move_to(10, 45)
+                
                 # Normal mode - show current track info
                 if hasattr(self.app_ref, 'tracks') and self.app_ref.tracks[current_track] is not None:
                     device = self.app_ref.tracks[current_track]

@@ -5,6 +5,7 @@ from sequencer import Sequencer
 from midi_output import MidiOutput
 from ui import SequencerUI
 from device_manager import DeviceManager
+from project_manager import ProjectManager
 
 class SequencerApp:
     def __init__(self, use_simulator=False):
@@ -14,6 +15,7 @@ class SequencerApp:
         self.device_manager = DeviceManager()
         self.sequencer = Sequencer(self.midi_output)
         self.midi_output.set_sequencer(self.sequencer)  # Enable clock sync
+        self.project_manager = ProjectManager(self)
         self.ui = SequencerUI(self.sequencer, self.device_manager)
         self.ui.octave = 4  # Pass octave to UI
         self.held_step_pad = None
@@ -148,6 +150,18 @@ class SequencerApp:
                 self.clock_selection_index = 0
                 print("Clock source selection mode")
                 self.last_encoder_time = time.time()
+            elif button_name == push2_python.constants.BUTTON_USER:
+                # Save project
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                filename = f"project_{timestamp}"
+                self.project_manager.save_project(filename)
+            elif button_name == push2_python.constants.BUTTON_BROWSE:
+                # Load most recent project
+                projects = self.project_manager.list_projects()
+                if projects:
+                    self.project_manager.load_project(projects[-1])
+                else:
+                    print("No projects found")
             elif 'Lower Row' in button_name:
                 # Track selection buttons (Lower Row 1-8)
                 try:

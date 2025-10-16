@@ -85,6 +85,12 @@ class SequencerApp:
         # Pass CC values to UI
         self.ui.cc_values = self.cc_values
         self.ui.app_ref = self  # Give UI access to app for octave display
+        
+    def get_current_track_channel(self):
+        """Get MIDI channel for current track"""
+        if self.tracks[self.current_track] is not None:
+            return self.tracks[self.current_track].channel
+        return 1
 
     def _setup_handlers(self):
         @push2_python.on_pad_pressed()
@@ -270,6 +276,24 @@ class SequencerApp:
                             self.clock_selection_index = (self.clock_selection_index + direction) % clock_count
                             self.encoder_accumulator = 0
                             print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
+                            self.last_encoder_time = time.time()
+                    elif self.device_selection_mode:
+                        # MIDI channel selection during device selection
+                        device = self.device_manager.get_device_by_index(self.device_selection_index)
+                        if device:
+                            new_channel = max(1, min(16, device.channel + increment))
+                            if new_channel != device.channel:
+                                device.channel = new_channel
+                                print(f"Device {device.name} MIDI channel: {new_channel}")
+                                self.last_encoder_time = time.time()
+                    elif self.tracks[self.current_track] is not None:
+                        # MIDI channel selection for current track
+                        device = self.tracks[self.current_track]
+                        new_channel = max(1, min(16, device.channel + increment))
+                        if new_channel != device.channel:
+                            device.channel = new_channel
+                            self.sequencer.set_track_channel(self.current_track, new_channel)
+                            print(f"Track {self.current_track} MIDI channel: {new_channel}")
                             self.last_encoder_time = time.time()
                 
                 case push2_python.constants.ENCODER_TRACK1_ENCODER:

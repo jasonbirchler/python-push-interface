@@ -39,7 +39,7 @@ class SequencerUI:
                     ctx.show_text(f"> {device.name} (Ch {device.channel})")
                     ctx.set_font_size(12)
                     ctx.move_to(10, 85)
-                    ctx.show_text("Master Encoder: Browse | Select: Confirm")
+                    ctx.show_text("Master: Browse | Swing: Channel | Select: Confirm")
                 # Return early to avoid showing other info
                 buf = surface.get_data()
                 frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
@@ -154,12 +154,17 @@ class SequencerUI:
             if hasattr(self.app_ref, 'midi_output') and self.app_ref.midi_output.selected_clock_source:
                 clock_source = self.app_ref.midi_output.selected_clock_source
             ctx.show_text(f"Clock: {clock_source} | BPM: {self.sequencer.bpm} | {status}")
+            
+            # Show encoder controls info
+            ctx.set_font_size(10)
+            ctx.move_to(10, 100)
+            ctx.show_text("Tempo: BPM | Swing: MIDI Ch | Track 1-8: CC Controls")
 
             # Show octave in bottom right
             ctx.set_font_size(12)
             ctx.move_to(WIDTH - 80, HEIGHT - 10)
             octave_val = self.app_ref.octave if self.app_ref else 4
-            ctx.show_text(f"Octave: {octave_val}")
+            ctx.show_text(f"Oct: {octave_val}")
 
             # Convert to numpy array
             buf = surface.get_data()

@@ -144,7 +144,7 @@ class SequencerUI:
             if not (hasattr(self.app_ref, 'device_selection_mode') and self.app_ref.device_selection_mode):
                 ctx.set_font_size(12)
                 ctx.move_to(10, 65)
-                device_info = f"Available Devices: {self.device_manager.get_device_count()}"
+                device_info = f"MIDI Ports: {self.device_manager.get_device_count()}"
                 ctx.show_text(device_info)
 
             # Show clock source, BPM and play status

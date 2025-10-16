@@ -34,12 +34,7 @@ class ProjectManager:
             # Save device info if assigned
             if self.app.tracks[i] is not None:
                 device = self.app.tracks[i]
-                track_data["device"] = {
-                    "name": device.name,
-                    "channel": device.channel,
-                    "port": device.port,
-                    "send_transport": getattr(device, 'send_transport', True)
-                }
+                track_data["device"] = self.app.device_manager.to_dict(device)
             
             # Save notes for this track
             pattern = self.app.sequencer.tracks[i]
@@ -83,14 +78,13 @@ class ProjectManager:
                 # Load device if assigned
                 if track_data["device"]:
                     device_info = track_data["device"]
-                    # Find matching device in device manager
-                    device = self._find_device_by_name(device_info["name"])
-                    if device:
-                        if self.app.midi_output.connect(device.port):
-                            self.app.tracks[track_idx] = device
-                            self.app.sequencer.set_track_channel(track_idx, device.channel)
-                            self.app.sequencer.set_track_port(track_idx, device.port)
-                            self.app.sequencer.set_track_device(track_idx, device)
+                    # Recreate device from saved data
+                    device = self.app.device_manager.from_dict(device_info)
+                    if device and self.app.midi_output.connect(device.port):
+                        self.app.tracks[track_idx] = device
+                        self.app.sequencer.set_track_channel(track_idx, device.channel)
+                        self.app.sequencer.set_track_port(track_idx, device.port)
+                        self.app.sequencer.set_track_device(track_idx, device)
                 
                 # Load notes
                 for note_data in track_data["notes"]:
@@ -132,13 +126,7 @@ class ProjectManager:
         self.app.sequencer.set_bpm(120)
         self.current_project_file = None
         
-    def _find_device_by_name(self, name):
-        """Find device by name in device manager"""
-        for i in range(self.app.device_manager.get_device_count()):
-            device = self.app.device_manager.get_device_by_index(i)
-            if device and device.name == name:
-                return device
-        return None
+
         
     def list_projects(self):
         """List available project files"""

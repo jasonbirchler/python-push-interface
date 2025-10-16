@@ -4,7 +4,7 @@ import sys
 from sequencer import Sequencer
 from midi_output import MidiOutput
 from ui import SequencerUI
-from device_manager import DeviceManager
+from dynamic_device_manager import DynamicDeviceManager
 from project_manager import ProjectManager
 
 class SequencerApp:
@@ -12,7 +12,7 @@ class SequencerApp:
         # Initialize components
         self.push = push2_python.Push2(run_simulator=use_simulator)
         self.midi_output = MidiOutput()
-        self.device_manager = DeviceManager()
+        self.device_manager = DynamicDeviceManager()
         self.sequencer = Sequencer(self.midi_output)
         self.midi_output.set_sequencer(self.sequencer)  # Enable clock sync
         self.project_manager = ProjectManager(self)
@@ -68,7 +68,7 @@ class SequencerApp:
             print("Warning: No MIDI output connected")
         else:
             print(f"Connected to MIDI port: {list(self.midi_output.output_ports.keys())}")
-        print(f"Loaded {self.device_manager.get_device_count()} devices from {self.device_manager.config_file}")
+        print(f"Found {self.device_manager.get_device_count()} MIDI ports, CC library: {self.device_manager.cc_library_file}")
 
         # Set up Push 2 event handlers
         self._setup_handlers()

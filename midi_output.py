@@ -129,12 +129,14 @@ class MidiOutput:
             port.send(msg)
 
             
-    def send_start(self):
+    def send_start(self, port_name: Optional[str] = None):
+        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
         msg = mido.Message('start')
-        for port in self.output_ports.values():
+        for port in target_ports:
             port.send(msg)
             
-    def send_stop(self):
+    def send_stop(self, port_name: Optional[str] = None):
+        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
         msg = mido.Message('stop')
-        for port in self.output_ports.values():
+        for port in target_ports:
             port.send(msg)

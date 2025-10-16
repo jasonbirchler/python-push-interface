@@ -123,7 +123,7 @@ class SequencerApp:
                     push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
                 else:
                     self.sequencer.play()
-                    push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'green')
+                    push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'green', push2_python.constants.ANIMATION_BLINKING_8TH)
             elif button_name == push2_python.constants.BUTTON_STOP:
                 self.sequencer.stop()
                 self.sequencer.current_step = 0
@@ -165,10 +165,18 @@ class SequencerApp:
                 # Toggle session management mode
                 self.session_mode = not self.session_mode
                 if self.session_mode:
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_SESSION, 'white')
                     self.session_action = None
                     print("Session mode")
+
+                    # Light up Open, Save, Save New buttons
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, 'white')
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, 'white')
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, 'white')
+                    
                     self.last_encoder_time = time.time()
                 else:
+                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_SESSION, 'dark_gray')
                     print("Exiting session mode")
             elif 'Upper Row' in button_name and self.session_mode:
                 # Handle upper row buttons in session mode
@@ -176,8 +184,15 @@ class SequencerApp:
                     case push2_python.constants.BUTTON_UPPER_ROW_1:  # Open
                         self.session_action = 'open'
                         self.session_project_index = 0
+
+                        # Light up OK button
+                        self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
+
                         print("Session: Open project")
                     case push2_python.constants.BUTTON_UPPER_ROW_2:  # Save
+                        # Light up OK button
+                        self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
+
                         self.session_action = 'save'
                         print("Session: Save project")
                     case push2_python.constants.BUTTON_UPPER_ROW_3:  # Save New
@@ -185,6 +200,9 @@ class SequencerApp:
                         print("Session: Save new project")
                     case push2_python.constants.BUTTON_UPPER_ROW_8:  # OK
                         self._execute_session_action()
+                        
+                        # Turn off ok LED
+                        self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
                     case _:
                         print(f"Invalid session button: {button_name}")
             elif button_name == push2_python.constants.BUTTON_USER:
@@ -210,59 +228,53 @@ class SequencerApp:
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
 
-            if encoder_name == push2_python.constants.ENCODER_TEMPO_ENCODER:
-                new_bpm = max(60, min(200, self.sequencer.bpm + increment))
-                self.sequencer.set_bpm(new_bpm)
-            elif encoder_name == push2_python.constants.ENCODER_MASTER_ENCODER and self.device_selection_mode:
-                # Accumulate encoder increments for more natural feel
-                self.encoder_accumulator += increment
-                threshold = self.encoder_threshold
+            match encoder_name:
+                case push2_python.constants.ENCODER_TEMPO_ENCODER:
+                    new_bpm = max(60, min(200, self.sequencer.bpm + increment))
+                    self.sequencer.set_bpm(new_bpm)
                 
-                if abs(self.encoder_accumulator) >= threshold:
-                    device_count = self.device_manager.get_device_count()
-                    direction = 1 if self.encoder_accumulator > 0 else -1
-                    self.device_selection_index = (self.device_selection_index + direction) % device_count
-                    self.encoder_accumulator = 0  # Reset accumulator
-                    print(f"Device selection: {self.device_selection_index}")
-            elif encoder_name == push2_python.constants.ENCODER_SWING_ENCODER and self.clock_selection_mode:
-                # Clock source selection
-                self.encoder_accumulator += increment
-                threshold = self.encoder_threshold
+                case push2_python.constants.ENCODER_MASTER_ENCODER:
+                    if self.device_selection_mode:
+                        # Accumulate encoder increments for more natural feel
+                        self.encoder_accumulator += increment
+                        threshold = self.encoder_threshold
+                        
+                        if abs(self.encoder_accumulator) >= threshold:
+                            device_count = self.device_manager.get_device_count()
+                            direction = 1 if self.encoder_accumulator > 0 else -1
+                            self.device_selection_index = (self.device_selection_index + direction) % device_count
+                            self.encoder_accumulator = 0  # Reset accumulator
+                            print(f"Device selection: {self.device_selection_index}")
                 
-                if abs(self.encoder_accumulator) >= threshold:
-                    clock_count = len(self.midi_output.clock_sources)
-                    direction = 1 if self.encoder_accumulator > 0 else -1
-                    self.clock_selection_index = (self.clock_selection_index + direction) % clock_count
-                    self.encoder_accumulator = 0
-                    print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
-                    self.last_encoder_time = time.time()
-            elif encoder_name == push2_python.constants.ENCODER_TRACK1_ENCODER and self.session_mode and self.session_action == 'open':
-                # Project browsing in session mode
-                self.encoder_accumulator += increment
-                threshold = self.encoder_threshold
+                case push2_python.constants.ENCODER_SWING_ENCODER:
+                    if self.clock_selection_mode:
+                        # Clock source selection
+                        self.encoder_accumulator += increment
+                        threshold = self.encoder_threshold
+                        
+                        if abs(self.encoder_accumulator) >= threshold:
+                            clock_count = len(self.midi_output.clock_sources)
+                            direction = 1 if self.encoder_accumulator > 0 else -1
+                            self.clock_selection_index = (self.clock_selection_index + direction) % clock_count
+                            self.encoder_accumulator = 0
+                            print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
+                            self.last_encoder_time = time.time()
                 
-                if abs(self.encoder_accumulator) >= threshold:
-                    projects = self.project_manager.list_projects()
-                    if projects:
-                        project_count = len(projects)
-                        direction = 1 if self.encoder_accumulator > 0 else -1
-                        self.session_project_index = (self.session_project_index + direction) % project_count
-                        self.encoder_accumulator = 0
-                        print(f"Session project: {projects[self.session_project_index]}")
-                        self.last_encoder_time = time.time()
-            else:
-                # Handle CC encoders - map Push encoder names to our encoder slots
-                encoder_map = {
-                    'Track1 Encoder': 'encoder_1', 'Track2 Encoder': 'encoder_2',
-                    'Track3 Encoder': 'encoder_3', 'Track4 Encoder': 'encoder_4',
-                    'Track5 Encoder': 'encoder_5', 'Track6 Encoder': 'encoder_6',
-                    'Track7 Encoder': 'encoder_7', 'Track8 Encoder': 'encoder_8'
-                }
-
-                if encoder_name in encoder_map:
-                    self._handle_cc_encoder(encoder_map[encoder_name], increment)
-                else:
-                    print(f"Unhandled encoder: {encoder_name}")  # Debug
+                case push2_python.constants.ENCODER_TRACK1_ENCODER:
+                    if self.session_mode and self.session_action == 'open':
+                        # Project browsing in session mode
+                        self.encoder_accumulator += increment
+                        threshold = self.encoder_threshold
+                        
+                        if abs(self.encoder_accumulator) >= threshold:
+                            projects = self.project_manager.list_projects()
+                            if projects:
+                                project_count = len(projects)
+                                direction = 1 if self.encoder_accumulator > 0 else -1
+                                self.session_project_index = (self.session_project_index + direction) % project_count
+                                self.encoder_accumulator = 0
+                                print(f"Session project: {projects[self.session_project_index]}")
+                                self.last_encoder_time = time.time()
 
     def _update_sequencer_for_device(self):
         # This method is no longer needed for multi-track, but keeping for compatibility
@@ -358,26 +370,27 @@ class SequencerApp:
             
     def _execute_session_action(self):
         """Execute the selected session action"""
-        if self.session_action == 'open':
-            projects = self.project_manager.list_projects()
-            if projects:
-                selected_project = projects[self.session_project_index]
-                self.project_manager.load_project(selected_project)
-                print(f"Project loaded: {selected_project}")
-        elif self.session_action == 'save':
-            if self.project_manager.current_project_file:
-                # Save to existing file
-                self.project_manager.save_project(self.project_manager.current_project_file)
-            else:
-                # Save as new file
+        match self.session_action:
+            case 'open':
+                projects = self.project_manager.list_projects()
+                if projects:
+                    selected_project = projects[self.session_project_index]
+                    self.project_manager.load_project(selected_project)
+                    print(f"Project loaded: {selected_project}")
+            case 'save':
+                if self.project_manager.current_project_file:
+                    # Save to existing file
+                    self.project_manager.save_project(self.project_manager.current_project_file)
+                else:
+                    # Save as new file
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    filename = f"project_{timestamp}"
+                    self.project_manager.save_project(filename)
+            case 'save_new':
+                # Always save as new file
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 filename = f"project_{timestamp}"
                 self.project_manager.save_project(filename)
-        elif self.session_action == 'save_new':
-            # Always save as new file
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"project_{timestamp}"
-            self.project_manager.save_project(filename)
         
         # Exit session mode after action
         self.session_mode = False
@@ -498,6 +511,8 @@ class SequencerApp:
 
         # Initialize button and pad colors after everything is set up
         time.sleep(1.0)  # Longer delay for Push hardware initialization
+        self.push.buttons.set_all_buttons_color('dark_gray')
+        time.sleep(0.5)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_ADD_TRACK, 'white')
 

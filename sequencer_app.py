@@ -62,6 +62,9 @@ class SequencerApp:
             'BUTTON_LOWER_ROW_5', 'BUTTON_LOWER_ROW_6', 'BUTTON_LOWER_ROW_7', 'BUTTON_LOWER_ROW_8'
         ]
         
+        # Refresh device manager to include virtual port
+        self.device_manager.refresh_devices()
+        
         # Connect to first available MIDI port
         print(f"Available MIDI ports: {self.midi_output.available_ports}")
         if not self.midi_output.connect():

@@ -43,6 +43,9 @@ class DynamicDeviceManager:
         """Scan all available MIDI output ports"""
         try:
             self.available_ports = mido.get_output_names()
+            # Add virtual port to available ports list
+            self.available_ports.append("Push Sequencer Out")
+            
             # Create device entries for all available ports
             self.current_devices = []
             for port in self.available_ports:

@@ -29,6 +29,11 @@ class SequencerApp:
         self.last_step = -1  # Track last step to minimize updates
         self.encoder_accumulator = 0  # Accumulate encoder increments for device selection
         self.encoder_threshold = 13  # num of increments required before encoder changes value
+        
+        # Clock source selection
+        self.clock_selection_mode = False
+        self.clock_selection_index = 0
+        self.metronome_button_held = False
 
         # Display refresh rate configuration
         # shorter values means less time between cycles or faster refresh
@@ -86,8 +91,15 @@ class SequencerApp:
                     self._update_pad_colors()
                     self._update_octave_buttons()
                     self._update_delete_button()
-
-
+            
+        @push2_python.on_button_released()
+        def on_button_released(push, button_name):
+            if button_name == push2_python.constants.BUTTON_METRONOME:
+                if self.clock_selection_mode:
+                    self._confirm_clock_selection()
+                self.metronome_button_held = False
+                self.clock_selection_mode = False
+                
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
             print(f"Button pressed: '{button_name}'")  # Debug to see actual button names
@@ -130,6 +142,12 @@ class SequencerApp:
                 print(f"Select button detected: {button_name}")
                 if self.device_selection_mode:
                     self._confirm_device_selection()
+            elif button_name == push2_python.constants.BUTTON_METRONOME:
+                self.metronome_button_held = True
+                self.clock_selection_mode = True
+                self.clock_selection_index = 0
+                print("Clock source selection mode")
+                self.last_encoder_time = time.time()
             elif 'Lower Row' in button_name:
                 # Track selection buttons (Lower Row 1-8)
                 try:
@@ -162,6 +180,18 @@ class SequencerApp:
                     self.device_selection_index = (self.device_selection_index + direction) % device_count
                     self.encoder_accumulator = 0  # Reset accumulator
                     print(f"Device selection: {self.device_selection_index}")
+            elif encoder_name == push2_python.constants.ENCODER_SWING_ENCODER and self.clock_selection_mode:
+                # Clock source selection
+                self.encoder_accumulator += increment
+                threshold = self.encoder_threshold
+                
+                if abs(self.encoder_accumulator) >= threshold:
+                    clock_count = len(self.midi_output.clock_sources)
+                    direction = 1 if self.encoder_accumulator > 0 else -1
+                    self.clock_selection_index = (self.clock_selection_index + direction) % clock_count
+                    self.encoder_accumulator = 0
+                    print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
+                    self.last_encoder_time = time.time()
             else:
                 # Handle CC encoders - map Push encoder names to our encoder slots
                 encoder_map = {
@@ -260,6 +290,14 @@ class SequencerApp:
                     "value": 64
                 }
             self.ui.cc_values = self.cc_values
+            
+    def _confirm_clock_selection(self):
+        """Confirm clock source selection"""
+        if self.clock_selection_mode:
+            selected_source = self.midi_output.clock_sources[self.clock_selection_index]
+            self.midi_output.select_clock_source(selected_source)
+            print(f"Clock source selected: {selected_source}")
+            self.clock_selection_mode = False
             
     def _update_track_buttons(self):
         # Update track buttons (Lower Row 1-8)

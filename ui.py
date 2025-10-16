@@ -61,6 +61,20 @@ class SequencerUI:
                     ctx.set_font_size(12)
                     ctx.move_to(10, 85)
                     ctx.show_text("Master Encoder: Browse | Select: Confirm")
+            elif hasattr(self.app_ref, 'clock_selection_mode') and self.app_ref.clock_selection_mode:
+                # Show ONLY clock source selection interface
+                ctx.show_text("SELECT CLOCK SOURCE")
+                ctx.set_font_size(14)
+                ctx.move_to(10, 65)
+                clock_source = self.app_ref.midi_output.clock_sources[self.app_ref.clock_selection_index]
+                ctx.show_text(f"> {clock_source}")
+                ctx.set_font_size(12)
+                ctx.move_to(10, 85)
+                ctx.show_text("Swing Encoder: Browse | Release: Confirm")
+                # Return early to avoid showing other info
+                buf = surface.get_data()
+                frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
+                return frame.transpose()
             else:
                 # Normal mode - show current track info
                 if hasattr(self.app_ref, 'tracks') and self.app_ref.tracks[current_track] is not None:
@@ -76,10 +90,13 @@ class SequencerUI:
                 device_info = f"Available Devices: {self.device_manager.get_device_count()}"
                 ctx.show_text(device_info)
 
-            # Show BPM and play status
+            # Show clock source, BPM and play status
             ctx.move_to(10, 85)
             status = "PLAYING" if self.sequencer.is_playing else "STOPPED"
-            ctx.show_text(f"BPM: {self.sequencer.bpm} | {status}")
+            clock_source = "Internal"
+            if hasattr(self.app_ref, 'midi_output') and self.app_ref.midi_output.selected_clock_source:
+                clock_source = self.app_ref.midi_output.selected_clock_source
+            ctx.show_text(f"Clock: {clock_source} | BPM: {self.sequencer.bpm} | {status}")
 
             # Show controls
             # ctx.set_font_size(10)

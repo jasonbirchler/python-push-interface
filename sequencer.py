@@ -103,8 +103,8 @@ class Sequencer:
             if len(self._clock_times) >= 24:
                 avg_interval = sum(self._clock_times) / len(self._clock_times)
                 quarter_note_time = avg_interval * 24
-                new_bpm = int(60.0 / quarter_note_time)
-                if abs(new_bpm - self.bpm) > 1:  # Only update if significant change
+                new_bpm = round(60.0 / quarter_note_time, 1)
+                if abs(new_bpm - self.bpm) > 0.1:  # Only update if significant change
                     self.bpm = new_bpm
                     print(f"BPM updated to: {self.bpm}")
                 

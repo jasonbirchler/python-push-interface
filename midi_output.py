@@ -7,6 +7,8 @@ class MidiOutput:
         self.available_ports = []
         self.input_ports = {}
         self.sequencer = None  # Will be set by sequencer
+        self.clock_sources = []  # Available clock sources
+        self.selected_clock_source = None
         self._scan_ports()
         self._setup_midi_input()
         
@@ -16,28 +18,38 @@ class MidiOutput:
     def _setup_midi_input(self):
         """Setup MIDI input for clock sync"""
         try:
-            import threading
             input_names = mido.get_input_names()
+            self.clock_sources = ['Internal']
             for name in input_names:
-                if 'Push' not in name and 'Midronome' in name:  # Only listen to Midronome for now
-                    try:
-                        port = mido.open_input(name)
-                        self.input_ports[name] = port
-                        self._monitor_input(name, port)
-                        print(f"Listening for MIDI clock on: {name}")
-                        break  # Only connect to first Midronome port
-                    except Exception as e:
-                        print(f"Failed to open input {name}: {e}")
+                if 'Push' not in name:  # Exclude Push 2
+                    self.clock_sources.append(name)
+            print(f"Available clock sources: {self.clock_sources}")
+            self.selected_clock_source = 'Internal'
         except Exception as e:
             print(f"MIDI input setup failed: {e}")
             
-    def _monitor_input(self, port_name, port):
-        """Monitor MIDI input for clock messages"""
-        print(f"Starting MIDI monitor thread for {port_name}")
-        try:
-            port.callback = self._handle_midi_message
-        except Exception as e:
-            print(f"MIDI input monitor error on {port_name}: {e}")
+    def select_clock_source(self, source_name):
+        """Select and connect to a clock source"""
+        if source_name == 'Internal':
+            self._disconnect_clock_source()
+            self.selected_clock_source = 'Internal'
+            print(f"Clock source: Internal")
+        elif source_name in self.clock_sources:
+            self._disconnect_clock_source()
+            try:
+                port = mido.open_input(source_name)
+                self.input_ports[source_name] = port
+                port.callback = self._handle_midi_message
+                self.selected_clock_source = source_name
+                print(f"Clock source: {source_name}")
+            except Exception as e:
+                print(f"Failed to connect to clock source {source_name}: {e}")
+                
+    def _disconnect_clock_source(self):
+        """Disconnect current clock source"""
+        for port in self.input_ports.values():
+            port.close()
+        self.input_ports.clear()
             
     def _handle_midi_message(self, msg):
         """Handle incoming MIDI message"""

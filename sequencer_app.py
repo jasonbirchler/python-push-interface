@@ -36,6 +36,11 @@ class SequencerApp:
         self.clock_selection_mode = False
         self.clock_selection_index = 0
         self.metronome_button_held = False
+        
+        # Project selection
+        self.project_selection_mode = False
+        self.project_selection_index = 0
+        self.browse_button_held = False
 
         # Display refresh rate configuration
         # shorter values means less time between cycles or faster refresh
@@ -101,6 +106,11 @@ class SequencerApp:
                     self._confirm_clock_selection()
                 self.metronome_button_held = False
                 self.clock_selection_mode = False
+            elif button_name == push2_python.constants.BUTTON_BROWSE:
+                if self.project_selection_mode:
+                    self._confirm_project_selection()
+                self.browse_button_held = False
+                self.project_selection_mode = False
                 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
@@ -156,10 +166,14 @@ class SequencerApp:
                 filename = f"project_{timestamp}"
                 self.project_manager.save_project(filename)
             elif button_name == push2_python.constants.BUTTON_BROWSE:
-                # Load most recent project
+                # Enter project selection mode
                 projects = self.project_manager.list_projects()
                 if projects:
-                    self.project_manager.load_project(projects[-1])
+                    self.browse_button_held = True
+                    self.project_selection_mode = True
+                    self.project_selection_index = 0
+                    print("Project selection mode")
+                    self.last_encoder_time = time.time()
                 else:
                     print("No projects found")
             elif 'Lower Row' in button_name:
@@ -205,6 +219,19 @@ class SequencerApp:
                     self.clock_selection_index = (self.clock_selection_index + direction) % clock_count
                     self.encoder_accumulator = 0
                     print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
+                    self.last_encoder_time = time.time()
+            elif encoder_name == push2_python.constants.ENCODER_MASTER_ENCODER and self.project_selection_mode:
+                # Project selection
+                self.encoder_accumulator += increment
+                threshold = self.encoder_threshold
+                
+                if abs(self.encoder_accumulator) >= threshold:
+                    projects = self.project_manager.list_projects()
+                    project_count = len(projects)
+                    direction = 1 if self.encoder_accumulator > 0 else -1
+                    self.project_selection_index = (self.project_selection_index + direction) % project_count
+                    self.encoder_accumulator = 0
+                    print(f"Project selection: {projects[self.project_selection_index]}")
                     self.last_encoder_time = time.time()
             else:
                 # Handle CC encoders - map Push encoder names to our encoder slots
@@ -312,6 +339,16 @@ class SequencerApp:
             self.midi_output.select_clock_source(selected_source)
             print(f"Clock source selected: {selected_source}")
             self.clock_selection_mode = False
+            
+    def _confirm_project_selection(self):
+        """Confirm project selection and load"""
+        if self.project_selection_mode:
+            projects = self.project_manager.list_projects()
+            if projects:
+                selected_project = projects[self.project_selection_index]
+                self.project_manager.load_project(selected_project)
+                print(f"Project loaded: {selected_project}")
+            self.project_selection_mode = False
             
     def _update_track_buttons(self):
         # Update track buttons (Lower Row 1-8)

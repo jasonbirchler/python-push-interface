@@ -75,6 +75,22 @@ class SequencerUI:
                 buf = surface.get_data()
                 frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
                 return frame.transpose()
+            elif hasattr(self.app_ref, 'project_selection_mode') and self.app_ref.project_selection_mode:
+                # Show ONLY project selection interface
+                ctx.show_text("SELECT PROJECT")
+                ctx.set_font_size(14)
+                ctx.move_to(10, 65)
+                projects = self.app_ref.project_manager.list_projects()
+                if projects:
+                    project_name = projects[self.app_ref.project_selection_index]
+                    ctx.show_text(f"> {project_name}")
+                ctx.set_font_size(12)
+                ctx.move_to(10, 85)
+                ctx.show_text("Master Encoder: Browse | Release: Confirm")
+                # Return early to avoid showing other info
+                buf = surface.get_data()
+                frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=buf)
+                return frame.transpose()
             else:
                 # Normal mode - show current track info
                 if hasattr(self.app_ref, 'tracks') and self.app_ref.tracks[current_track] is not None:

@@ -542,3 +542,4 @@ class SequencerApp:
             self.sequencer.stop()
             self.midi_output.disconnect()
             self.push.pads.set_all_pads_to_black()
+            self.push.buttons.set_all_buttons_color('black')

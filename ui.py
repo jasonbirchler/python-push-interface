@@ -117,7 +117,7 @@ class SequencerUI:
                     if self.app_ref.project_manager.current_project_file:
                         ctx.show_text(f"Save: {self.app_ref.project_manager.current_project_file}?")
                     else:
-                        ctx.show_text("Save: New project")
+                        ctx.show_text("Save: New project?")
                 elif self.app_ref.session_action == 'save_new':
                     ctx.show_text("Save as new project")
                 

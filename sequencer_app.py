@@ -52,6 +52,15 @@ class SequencerApp:
         # i.e. 1/rate = fps
         self.fast_refresh_rate = 0.02  # for active use (encoders, device selection, playback)
         self.normal_refresh_rate = 0.5  # for idle state
+
+        self.UPPER_ROW_BUTTON_CONSTANTS = [
+            'BUTTON_UPPER_ROW_1', 'BUTTON_UPPER_ROW_2', 'BUTTON_UPPER_ROW_3', 'BUTTON_UPPER_ROW_4',
+            'BUTTON_UPPER_ROW_5', 'BUTTON_UPPER_ROW_6', 'BUTTON_UPPER_ROW_7', 'BUTTON_UPPER_ROW_8'
+        ]
+        self.LOWER_ROW_BUTTON_CONSTANTS = [
+            'BUTTON_LOWER_ROW_1', 'BUTTON_LOWER_ROW_2', 'BUTTON_LOWER_ROW_3', 'BUTTON_LOWER_ROW_4',
+            'BUTTON_LOWER_ROW_5', 'BUTTON_LOWER_ROW_6', 'BUTTON_LOWER_ROW_7', 'BUTTON_LOWER_ROW_8'
+        ]
         
         # Connect to first available MIDI port
         print(f"Available MIDI ports: {self.midi_output.available_ports}")
@@ -398,10 +407,6 @@ class SequencerApp:
             
     def _update_track_buttons(self):
         # Update track buttons (Lower Row 1-8)
-        track_button_constants = [
-            'BUTTON_LOWER_ROW_1', 'BUTTON_LOWER_ROW_2', 'BUTTON_LOWER_ROW_3', 'BUTTON_LOWER_ROW_4',
-            'BUTTON_LOWER_ROW_5', 'BUTTON_LOWER_ROW_6', 'BUTTON_LOWER_ROW_7', 'BUTTON_LOWER_ROW_8'
-        ]
         
         for i in range(8):
             if self.tracks[i] is not None:
@@ -410,7 +415,7 @@ class SequencerApp:
                 color = 'black'  # Empty track
                 
             # Set the actual button color
-            button_name = track_button_constants[i]
+            button_name = self.LOWER_ROW_BUTTON_CONSTANTS[i]
             if hasattr(push2_python.constants, button_name):
                 button_constant = getattr(push2_python.constants, button_name)
                 self.push.buttons.set_button_color(button_constant, color)
@@ -515,6 +520,13 @@ class SequencerApp:
         time.sleep(0.5)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_ADD_TRACK, 'white')
+
+        # Init upper row buttons
+        for i in range(8):
+            button_name = self.UPPER_ROW_BUTTON_CONSTANTS[i]
+            if hasattr(push2_python.constants, button_name):
+                button_constant = getattr(push2_python.constants, button_name)
+                self.push.buttons.set_button_color(button_constant, 'black')
 
         # Initialize pad colors after hardware is ready
         self._update_pad_colors()

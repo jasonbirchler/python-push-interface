@@ -160,32 +160,35 @@ class Sequencer:
     def _play_loop(self):
         step_duration = 60.0 / (self.bpm * 4)  # 16th notes
         next_step_time = time.time()
-        note_off_time = None
-        current_step_notes = set()
+        self.note_off_time = None
+        self.current_step_notes = set()
 
         while not self._stop_event.is_set():
             current_time = time.time()
 
             # Send note-off for previous step's notes
-            if note_off_time and current_time >= note_off_time:
-                for channel, note, port_name in current_step_notes:
+            if self.note_off_time and current_time >= self.note_off_time:
+                for channel, note, port_name in self.current_step_notes:
                     self.midi_output.send_note_off(channel, note, port_name)
                     self._active_notes.discard((channel, note, port_name))
-                current_step_notes.clear()
-                note_off_time = None
+                self.current_step_notes.clear()
+                self.note_off_time = None
 
             # Check if it's time for the next step (only for internal timing)
             if not self.external_sync and current_time >= next_step_time:
                 self._trigger_step()
-                # Schedule note-off for end of this step
-                if current_step_notes:
-                    note_off_time = next_step_time + step_duration * 0.9
                 next_step_time += step_duration
 
             time.sleep(0.01)  # Small sleep to prevent CPU spinning
             
     def _trigger_step(self):
         """Trigger notes for current step"""
+        # Send note-off for previous step's notes first
+        for channel, note, port_name in self.current_step_notes:
+            self.midi_output.send_note_off(channel, note, port_name)
+            self._active_notes.discard((channel, note, port_name))
+        self.current_step_notes.clear()
+        
         # Play notes for all tracks at current step
         total_notes = 0
         for track_idx, track_pattern in enumerate(self.tracks):
@@ -198,6 +201,11 @@ class Sequencer:
                 print(f"Track {track_idx} Step {self.current_step}: Playing note {note.note} on channel {channel} port {port_name}")
                 self.midi_output.send_note_on(channel, note.note, note.velocity, port_name)
                 self._active_notes.add((channel, note.note, port_name))
+                self.current_step_notes.add((channel, note.note, port_name))
+
+        # Schedule note-off for end of this step
+        step_duration = 60.0 / (self.bpm * 4)
+        self.note_off_time = time.time() + step_duration * 0.9
 
         print(f"Step {self.current_step}: {total_notes} total notes across all tracks")
         

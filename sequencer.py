@@ -192,6 +192,10 @@ class Sequencer:
         # Play notes for all tracks at current step
         total_notes = 0
         for track_idx, track_pattern in enumerate(self.tracks):
+            # Check if track should be audible
+            if hasattr(self, 'app_ref') and self.app_ref and not self.app_ref._is_track_audible(track_idx):
+                continue
+                
             notes_at_step = track_pattern.get_notes_at_step(self.current_step)
             total_notes += len(notes_at_step)
 

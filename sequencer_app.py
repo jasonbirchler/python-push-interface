@@ -48,6 +48,11 @@ class SequencerApp:
         self.session_mode = False
         self.session_action = None  # 'open', 'save', 'save_new'
         self.session_project_index = 0
+        
+        # Mute/Solo state
+        self.track_muted = [False] * 8  # Track mute state
+        self.solo_mode = False
+        self.soloed_track = None
 
         # Display refresh rate configuration
         # shorter values means less time between cycles or faster refresh
@@ -83,6 +88,9 @@ class SequencerApp:
 
         # Set up pad color callback
         self.sequencer._update_pad_colors_callback = self._update_pad_colors
+        
+        # Pass app reference to sequencer for mute/solo checks
+        self.sequencer.app_ref = self
 
         # Pass CC values to UI
         self.ui.cc_values = self.cc_values
@@ -93,6 +101,58 @@ class SequencerApp:
         if self.tracks[self.current_track] is not None:
             return self.tracks[self.current_track].channel
         return 1
+        
+    def _toggle_mute(self):
+        """Toggle mute for current track"""
+        if self.tracks[self.current_track] is None:
+            return
+            
+        self.track_muted[self.current_track] = not self.track_muted[self.current_track]
+        
+        if self.track_muted[self.current_track]:
+            print(f"Muted track {self.current_track}")
+        else:
+            print(f"Unmuted track {self.current_track}")
+            
+        self._update_mute_solo_buttons()
+        
+    def _toggle_solo(self):
+        """Toggle solo for current track"""
+        if self.tracks[self.current_track] is None:
+            return
+            
+        if self.solo_mode and self.soloed_track == self.current_track:
+            # Turn off solo
+            self.solo_mode = False
+            self.soloed_track = None
+            print(f"Solo off - all tracks restored")
+        else:
+            # Turn on solo
+            self.solo_mode = True
+            self.soloed_track = self.current_track
+            print(f"Solo track {self.current_track}")
+        self._update_mute_solo_buttons()
+        
+    def _is_track_audible(self, track_idx):
+        """Check if track should play notes based on mute/solo state"""
+        if self.solo_mode:
+            return track_idx == self.soloed_track
+        else:
+            return not self.track_muted[track_idx]
+            
+    def _update_mute_solo_buttons(self):
+        """Update mute/solo button colors"""
+        # Mute button
+        if self.track_muted[self.current_track]:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, 'red', push2_python.constants.ANIMATION_PULSING_QUARTER)
+        else:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, 'white')
+            
+        # Solo button
+        if self.solo_mode and self.soloed_track == self.current_track:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, 'yellow', push2_python.constants.ANIMATION_PULSING_QUARTER)
+        else:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, 'white')
 
     def _setup_handlers(self):
         @push2_python.on_pad_pressed()
@@ -140,6 +200,7 @@ class SequencerApp:
                         print(f"Selected track {track_num}")
                         self._update_track_buttons()
                         self._init_cc_values_for_track()
+                        self._update_mute_solo_buttons()
                         # Force pad update when switching tracks
                         self.pad_states = {}
                         self._update_pad_colors()
@@ -211,6 +272,12 @@ class SequencerApp:
                             self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, DEFAULT_BUTTON_STATE)
                             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, DEFAULT_BUTTON_STATE)
 
+                    case push2_python.constants.BUTTON_MUTE:
+                        self._toggle_mute()
+                        
+                    case push2_python.constants.BUTTON_SOLO:
+                        self._toggle_solo()
+                        
                     case push2_python.constants.BUTTON_SESSION:
                         # Toggle session management mode
                         self.session_mode = not self.session_mode

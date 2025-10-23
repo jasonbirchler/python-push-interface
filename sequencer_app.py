@@ -53,6 +53,10 @@ class SequencerApp:
         self.track_muted = [False] * 8  # Track mute state
         self.solo_mode = False
         self.soloed_track = None
+        
+        # Track editing state
+        self.held_track_button = None
+        self.track_edit_mode = False
 
         # Display refresh rate configuration
         # shorter values means less time between cycles or faster refresh
@@ -133,6 +137,25 @@ class SequencerApp:
             print(f"Solo track {self.current_track}")
         self._update_mute_solo_buttons()
         
+    def _enter_track_edit_mode(self):
+        """Enter edit mode for the held track"""
+        self.track_edit_mode = True
+        self.device_selection_mode = True
+        self.device_selection_index = 0
+        
+        # Find current device index
+        current_device = self.tracks[self.held_track_button]
+        for i, device in enumerate(self.device_manager.current_devices):
+            if device.name == current_device.name and device.port == current_device.port:
+                self.device_selection_index = i
+                break
+                
+        # Light up OK button
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
+        
+        print(f"Editing track {self.held_track_button} - {current_device.name}")
+        self.last_encoder_time = time.time()
+        
     def _is_track_audible(self, track_idx):
         """Check if track should play notes based on mute/solo state"""
         if self.solo_mode:
@@ -184,8 +207,11 @@ class SequencerApp:
                     self._update_octave_buttons()
                     self._update_delete_button()
             
-        # @push2_python.on_button_released()
-        # def on_button_released(push, button_name):
+        @push2_python.on_button_released()
+        def on_button_released(push, button_name):
+            # Track button released - only clear if not in edit mode
+            if 'Lower Row' in button_name and not self.track_edit_mode:
+                self.held_track_button = None
                 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
@@ -196,6 +222,7 @@ class SequencerApp:
                 try:
                     track_num = int(button_name.split()[-1]) - 1  # Convert to 0-based index
                     if 0 <= track_num < 8 and self.tracks[track_num] is not None:
+                        self.held_track_button = track_num
                         self.current_track = track_num
                         print(f"Selected track {track_num}")
                         self._update_track_buttons()
@@ -278,6 +305,12 @@ class SequencerApp:
                     case push2_python.constants.BUTTON_SOLO:
                         self._toggle_solo()
                         
+                    case push2_python.constants.BUTTON_SETUP:
+                        if self.held_track_button is not None and self.tracks[self.held_track_button] is not None:
+                            self._enter_track_edit_mode()
+                        else:
+                            print("Hold a track button and press Setup to edit track")
+                        
                     case push2_python.constants.BUTTON_SESSION:
                         # Toggle session management mode
                         self.session_mode = not self.session_mode
@@ -336,7 +369,7 @@ class SequencerApp:
                         # OK Button
                         if self.session_mode:
                             self._execute_session_action()
-                        elif self.device_selection_mode:
+                        elif self.device_selection_mode or self.track_edit_mode:
                             self._confirm_device_selection()
                         elif self.clock_selection_mode:
                             self._confirm_clock_selection()
@@ -458,12 +491,20 @@ class SequencerApp:
             if device:
                 # Try to connect to device port first
                 if self.midi_output.connect(device.port):
-                    self.tracks[self.current_track] = device
-                    self.sequencer.set_track_channel(self.current_track, device.channel)
-                    self.sequencer.set_track_port(self.current_track, device.port)
-                    self.sequencer.set_track_device(self.current_track, device)
+                    target_track = self.held_track_button if self.track_edit_mode else self.current_track
+                    self.tracks[target_track] = device
+                    self.sequencer.set_track_channel(target_track, device.channel)
+                    self.sequencer.set_track_port(target_track, device.port)
+                    self.sequencer.set_track_device(target_track, device)
                     self.device_selection_mode = False
-                    print(f"Track {self.current_track} assigned to {device.name} on port {device.port}")
+                    
+                    if self.track_edit_mode:
+                        print(f"Track {target_track} updated to {device.name} on port {device.port}")
+                        self.track_edit_mode = False
+                        self.held_track_button = None
+                    else:
+                        print(f"Track {target_track} assigned to {device.name} on port {device.port}")
+                        
                     self._update_track_buttons()
                     self._init_cc_values_for_track()
                     # Force pad update after confirming device

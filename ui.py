@@ -37,7 +37,11 @@ class SequencerUI:
                 # Show ONLY device selection interface
                 ctx.set_font_size(FONT_SIZE_MED)
                 ctx.move_to(10, 45)
-                ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
+                if (hasattr(self.app_ref, 'track_edit_mode') and self.app_ref.track_edit_mode and 
+                    self.app_ref.held_track_button is not None):
+                    ctx.show_text(f"EDIT TRACK {self.app_ref.held_track_button+1}")
+                else:
+                    ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
                 
                 device = self.device_manager.get_device_by_index(self.app_ref.device_selection_index)
                 if device:

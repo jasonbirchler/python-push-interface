@@ -6,6 +6,7 @@ from midi_output import MidiOutput
 from ui_main import SequencerUI
 from dynamic_device_manager import DynamicDeviceManager
 from project_manager import ProjectManager
+from handlers.button_manager import ButtonManager
 
 DEFAULT_BUTTON_STATE = 'dark_gray'
 
@@ -87,9 +88,6 @@ class SequencerApp:
         # Set up Push 2 event handlers
         self._setup_handlers()
 
-        # Initialize with first device
-        self._update_sequencer_for_device()
-
         # Set up pad color callback
         self.sequencer._update_pad_colors_callback = self._update_pad_colors
         
@@ -99,6 +97,9 @@ class SequencerApp:
         # Pass CC values to UI
         self.ui.cc_values = self.cc_values
         self.ui.app_ref = self  # Give UI access to app for octave display
+        
+        # Initialize button manager
+        self.button_manager = ButtonManager(self)
         
     def get_current_track_channel(self):
         """Get MIDI channel for current track"""
@@ -176,6 +177,42 @@ class SequencerApp:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, 'yellow', push2_python.constants.ANIMATION_PULSING_QUARTER)
         else:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, 'white')
+            
+    def _handle_remaining_buttons(self, button_name):
+        """Handle buttons not yet moved to button manager"""
+        match button_name:
+            case push2_python.constants.BUTTON_OCTAVE_UP:
+                self.octave = min(8, self.octave + 1)
+                self.ui.octave = self.octave
+                print(f"Octave up: {self.octave}")
+                
+            case push2_python.constants.BUTTON_OCTAVE_DOWN:
+                self.octave = max(1, self.octave - 1)
+                self.ui.octave = self.octave
+                print(f"Octave down: {self.octave}")
+                
+            case push2_python.constants.BUTTON_DELETE:
+                if (self.held_step_pad is not None and 
+                    self.tracks[self.current_track] is not None and 
+                    self.sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)):
+                    
+                    self.sequencer.tracks[self.current_track].clear_step(self.held_step_pad)
+                    self._update_pad_colors()
+                    print(f"Cleared track {self.current_track} step {self.held_step_pad}")
+                    
+            case push2_python.constants.BUTTON_UPPER_ROW_8:
+                # OK Button - handle confirmations based on mode
+                if self.clock_selection_mode:
+                    self.button_manager.clock.handle_confirm_clock_selection()
+                elif self.device_selection_mode or self.track_edit_mode:
+                    self.button_manager.device.handle_confirm_selection()
+                # Turn off OK LED
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, DEFAULT_BUTTON_STATE)
+                
+    def _handle_remaining_encoders(self, encoder_name, increment):
+        """Handle encoders not yet moved to button manager"""
+        # Handle CC encoders and other remaining encoders here
+        pass  # Placeholder for now
 
     def _setup_handlers(self):
         @push2_python.on_pad_pressed()
@@ -209,235 +246,21 @@ class SequencerApp:
             
         @push2_python.on_button_released()
         def on_button_released(push, button_name):
-            # Track button released - only clear if not in edit mode
-            if 'Lower Row' in button_name and not self.track_edit_mode:
-                self.held_track_button = None
+            self.button_manager.handle_button_release(button_name)
                 
         @push2_python.on_button_pressed()
         def on_button_pressed(push, button_name):
-            print(f"Button pressed: '{button_name}'")  # Debug to see actual button names
-
-            if 'Lower Row' in button_name:
-                # Track selection buttons (Lower Row 1-8)
-                try:
-                    track_num = int(button_name.split()[-1]) - 1  # Convert to 0-based index
-                    if 0 <= track_num < 8 and self.tracks[track_num] is not None:
-                        self.held_track_button = track_num
-                        self.current_track = track_num
-                        print(f"Selected track {track_num}")
-                        self._update_track_buttons()
-                        self._init_cc_values_for_track()
-                        self._update_mute_solo_buttons()
-                        # Force pad update when switching tracks
-                        self.pad_states = {}
-                        self._update_pad_colors()
-                except (ValueError, IndexError):
-                    print(f"Invalid track button: {button_name}")
-            else:
-                match button_name:
-                    case push2_python.constants.BUTTON_PLAY:
-                        if self.sequencer.is_playing:
-                            self.sequencer.stop()
-                            push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
-                        else:
-                            self.sequencer.play()
-                            push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'green', push2_python.constants.ANIMATION_PULSING_QUARTER)
-
-                    case push2_python.constants.BUTTON_STOP:
-                        self.sequencer.stop()
-                        self.sequencer.current_step = 0
-                        push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
-
-                    case push2_python.constants.BUTTON_LEFT:
-                        self.device_manager.prev_device()
-                        self._update_sequencer_for_device()
-
-                    case push2_python.constants.BUTTON_RIGHT:
-                        self.device_manager.next_device()
-                        self._update_sequencer_for_device()
-
-                    case push2_python.constants.BUTTON_OCTAVE_UP:
-                        self.octave = min(8, self.octave + 1)
-                        self.ui.octave = self.octave
-                        print(f"Octave up: {self.octave}")
-
-                    case push2_python.constants.BUTTON_OCTAVE_DOWN:
-                        self.octave = max(1, self.octave - 1)
-                        self.ui.octave = self.octave
-                        print(f"Octave down: {self.octave}")
-
-                    case push2_python.constants.BUTTON_DELETE:
-                        if (self.held_step_pad is not None and 
-                            self.tracks[self.current_track] is not None and 
-                            self.sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)):
-                            
-                            self.sequencer.tracks[self.current_track].clear_step(self.held_step_pad)
-                            self._update_pad_colors()
-                            print(f"Cleared track {self.current_track} step {self.held_step_pad}")
-
-                    case push2_python.constants.BUTTON_ADD_TRACK:
-                        # Toggle Add Track
-                        self.device_selection_mode = not self.device_selection_mode
-
-                        if self.device_selection_mode:
-                            print(f"Add track button detected: {button_name}")
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
-                            self._add_track()
-                        else:
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
-                    case push2_python.constants.BUTTON_METRONOME:
-                        # Toggle clock selection mode
-                        self.clock_selection_mode = not self.clock_selection_mode
-                        
-                        if self.clock_selection_mode:
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, 'white')
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
-                            self.clock_selection_index = 0
-                            print("Clock source selection mode")
-                            self.last_encoder_time = time.time()
-                        else:
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, DEFAULT_BUTTON_STATE)
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, DEFAULT_BUTTON_STATE)
-
-                    case push2_python.constants.BUTTON_MUTE:
-                        self._toggle_mute()
-                        
-                    case push2_python.constants.BUTTON_SOLO:
-                        self._toggle_solo()
-                        
-                    case push2_python.constants.BUTTON_SETUP:
-                        if self.held_track_button is not None and self.tracks[self.held_track_button] is not None:
-                            self._enter_track_edit_mode()
-                        else:
-                            print("Hold a track button and press Setup to edit track")
-                        
-                    case push2_python.constants.BUTTON_SESSION:
-                        # Toggle session management mode
-                        self.session_mode = not self.session_mode
-
-                        if self.session_mode:
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SESSION, 'white')
-                            self.session_action = None
-                            print("Session mode")
-
-                            # Light up Open, Save, Save New buttons
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, 'white')
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, 'white')
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, 'white')
-                            
-                            self.last_encoder_time = time.time()
-                        else:
-                            # Reset button LEDs
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, DEFAULT_BUTTON_STATE)
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, DEFAULT_BUTTON_STATE)
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, DEFAULT_BUTTON_STATE)
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, DEFAULT_BUTTON_STATE)
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SESSION, DEFAULT_BUTTON_STATE)
-                            print("Exiting session mode")
-
-                    case push2_python.constants.BUTTON_UPPER_ROW_1:
-                        # In Session mode: Open
-                        if self.session_mode:
-                            self.session_action = 'open'
-                            self.session_project_index = 0
-
-                            # Light up OK button
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
-                        
-                        # In Track mode: Select Device
-                        elif self.device_selection_mode:
-                            # Reset button states
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, DEFAULT_BUTTON_STATE)
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_ADD_TRACK, DEFAULT_BUTTON_STATE)
-
-                    case push2_python.constants.BUTTON_UPPER_ROW_2:
-                        if self.session_mode:
-                            # Light up OK button
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, 'white')
-
-                            # In Session mode: Save
-                            self.session_action = 'save'
-                            print("Session: Save project")
-
-                    case push2_python.constants.BUTTON_UPPER_ROW_3:
-                        # In Session mode: Save New
-                        if self.session_mode:
-                            self.session_action = 'save_new'
-                            print("Session: Save new project")
-
-                    case push2_python.constants.BUTTON_UPPER_ROW_8:
-                        # OK Button
-                        if self.session_mode:
-                            self._execute_session_action()
-                        elif self.device_selection_mode or self.track_edit_mode:
-                            self._confirm_device_selection()
-                        elif self.clock_selection_mode:
-                            self._confirm_clock_selection()
-                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, DEFAULT_BUTTON_STATE)
-                            
-                        # Turn off ok LED
-                        self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, DEFAULT_BUTTON_STATE)
+            # Try button manager first
+            if not self.button_manager.handle_button_press(button_name):
+                # Handle remaining buttons not in button manager
+                self._handle_remaining_buttons(button_name)
                 
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
-
-            match encoder_name:
-                case push2_python.constants.ENCODER_TEMPO_ENCODER:
-                    new_bpm = max(60, min(200, self.sequencer.bpm + increment))
-                    self.sequencer.set_bpm(new_bpm)
-
-                case push2_python.constants.ENCODER_TRACK1_ENCODER:
-                    if self.session_mode and self.session_action == 'open':
-                        # Project browsing in session mode
-                        self.encoder_accumulator += increment
-                        
-                        if abs(self.encoder_accumulator) >= self.encoder_threshold:
-                            projects = self.project_manager.list_projects()
-                            if projects:
-                                project_count = len(projects)
-                                direction = 1 if self.encoder_accumulator > 0 else -1
-                                self.session_project_index = (self.session_project_index + direction) % project_count
-                                self.encoder_accumulator = 0
-                                print(f"Session project: {projects[self.session_project_index]}")
-                                self.last_encoder_time = time.time()
-
-                    elif self.device_selection_mode:
-                        # Accumulate encoder increments for more natural feel
-                        self.encoder_accumulator += increment
-                        
-                        if abs(self.encoder_accumulator) >= self.encoder_threshold:
-                            device_count = self.device_manager.get_device_count()
-                            direction = 1 if self.encoder_accumulator > 0 else -1
-                            self.device_selection_index = (self.device_selection_index + direction) % device_count
-                            self.encoder_accumulator = 0  # Reset accumulator
-                            print(f"Device selection: {self.device_selection_index}")
-
-                    elif self.clock_selection_mode:
-                        # Clock source selection
-                        self.encoder_accumulator += increment
-                        
-                        if abs(self.encoder_accumulator) >= self.encoder_threshold:
-                            clock_count = len(self.midi_output.clock_sources)
-                            direction = 1 if self.encoder_accumulator > 0 else -1
-                            self.clock_selection_index = (self.clock_selection_index + direction) % clock_count
-                            self.encoder_accumulator = 0
-                            print(f"Clock selection: {self.midi_output.clock_sources[self.clock_selection_index]}")
-                            self.last_encoder_time = time.time()
-
-                case push2_python.constants.ENCODER_TRACK2_ENCODER:
-                    if self.device_selection_mode:
-                        # MIDI channel selection during device selection
-                        device = self.device_manager.get_device_by_index(self.device_selection_index)
-                        if device:
-                            new_channel = max(1, min(16, device.channel + increment))
-                            if new_channel != device.channel:
-                                device.channel = new_channel
-                                print(f"Device {device.name} MIDI channel: {new_channel}")
-                                self.last_encoder_time = time.time()
-
-    def _update_sequencer_for_device(self):
-        # This method is no longer needed for multi-track, but keeping for compatibility
-        pass
+            # Try button manager first
+            if not self.button_manager.handle_encoder_rotation(encoder_name, increment):
+                # Handle remaining encoders not in button manager
+                self._handle_remaining_encoders(encoder_name, increment)
 
     def _init_cc_values(self):
         device = self.device_manager.get_current_device()
@@ -701,6 +524,8 @@ class SequencerApp:
                 else:
                     update_interval = self.normal_refresh_rate
 
+                # MIDI input uses callbacks, no polling needed
+                
                 # Update display
                 frame = self.ui.get_current_frame()
                 self.push.display.display_frame(frame, input_format=push2_python.constants.FRAME_FORMAT_RGB565)

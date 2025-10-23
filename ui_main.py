@@ -33,6 +33,8 @@ class SequencerUI:
                 self.ui_state.session_project_index = getattr(self.app_ref, 'session_project_index', 0)
                 self.ui_state.session_action = getattr(self.app_ref, 'session_action', None)
                 self.ui_state.held_track_button = getattr(self.app_ref, 'held_track_button', None)
+                
+
             
             # Route to appropriate renderer
             if self.ui_state.device_selection_mode:

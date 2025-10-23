@@ -9,19 +9,8 @@ class MidiOutput:
         self.sequencer = None  # Will be set by sequencer
         self.clock_sources = []  # Available clock sources
         self.selected_clock_source = None
-        self.virtual_port = None  # Virtual MIDI port for software connections
-        self._create_virtual_port()
         self._scan_ports()
         self._setup_midi_input()
-        
-    def _create_virtual_port(self):
-        """Create a virtual MIDI output port for software connections"""
-        try:
-            self.virtual_port = mido.open_output('Push Sequencer Out', virtual=True)
-            print(f"Created virtual MIDI port: Push Sequencer Out")
-        except Exception as e:
-            print(f"Failed to create virtual MIDI port: {e}")
-            self.virtual_port = None
         
     def _scan_ports(self):
         self.available_ports = mido.get_output_names()
@@ -83,16 +72,6 @@ class MidiOutput:
             port_name = self.available_ports[0]
             
         if port_name and port_name not in self.output_ports:
-            # Special case for virtual port
-            if port_name == "Push Sequencer Out":
-                if self.virtual_port:
-                    self.output_ports[port_name] = self.virtual_port
-                    print(f"Connected to virtual MIDI port: {port_name}")
-                    return True
-                else:
-                    print(f"Virtual port not available")
-                    return False
-            
             # Try exact match first
             actual_port = port_name
             if port_name not in self.available_ports:
@@ -124,19 +103,12 @@ class MidiOutput:
             for port in self.output_ports.values():
                 port.close()
             self.output_ports.clear()
-            # Close virtual port
-            if self.virtual_port:
-                self.virtual_port.close()
-                self.virtual_port = None
             
     def send_note_on(self, channel: int, note: int, velocity: int, port_name: Optional[str] = None):
         target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
         msg = mido.Message('note_on', channel=channel-1, note=note, velocity=velocity)
         for port in target_ports:
             port.send(msg)
-        # Also send to virtual port
-        if self.virtual_port:
-            self.virtual_port.send(msg)
 
             
     def send_note_off(self, channel: int, note: int, port_name: Optional[str] = None):
@@ -144,42 +116,25 @@ class MidiOutput:
         msg = mido.Message('note_off', channel=channel-1, note=note, velocity=0)
         for port in target_ports:
             port.send(msg)
-        # Also send to virtual port
-        if self.virtual_port:
-            self.virtual_port.send(msg)
             
     def send_cc(self, channel: int, cc_number: int, value: int, port_name: Optional[str] = None):
         target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
         msg = mido.Message('control_change', channel=channel-1, control=cc_number, value=value)
         for port in target_ports:
             port.send(msg)
-        # Also send to virtual port
-        if self.virtual_port:
-            self.virtual_port.send(msg)
 
     def send_clock(self):
         msg = mido.Message('clock')
         for port in self.output_ports.values():
             port.send(msg)
-        # Also send to virtual port
-        if self.virtual_port:
-            self.virtual_port.send(msg)
 
             
-    def send_start(self, port_name: Optional[str] = None):
-        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
+    def send_start(self):
         msg = mido.Message('start')
-        for port in target_ports:
+        for port in self.output_ports.values():
             port.send(msg)
-        # Also send to virtual port
-        if self.virtual_port:
-            self.virtual_port.send(msg)
             
-    def send_stop(self, port_name: Optional[str] = None):
-        target_ports = [self.output_ports[port_name]] if port_name and port_name in self.output_ports else self.output_ports.values()
+    def send_stop(self):
         msg = mido.Message('stop')
-        for port in target_ports:
+        for port in self.output_ports.values():
             port.send(msg)
-        # Also send to virtual port
-        if self.virtual_port:
-            self.virtual_port.send(msg)

@@ -3,7 +3,7 @@ import time
 import sys
 from sequencer import Sequencer
 from midi_output import MidiOutput
-from ui import SequencerUI
+from ui_main import SequencerUI
 from dynamic_device_manager import DynamicDeviceManager
 from project_manager import ProjectManager
 

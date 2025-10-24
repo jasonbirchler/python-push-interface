@@ -158,11 +158,6 @@ class DisplayRenderer:
         else:
             ctx.show_text(f"Track {current_track+1} - No Device")
         
-        # Device info
-        ctx.set_font_size(self.FONT_SIZE_SMALL)
-        ctx.move_to(10, 65)
-        ctx.show_text(f"MIDI Ports: {device_manager.get_device_count()}")
-        
         # Status info
         ctx.move_to(10, 85)
         status = "PLAYING" if sequencer.is_playing else "STOPPED"

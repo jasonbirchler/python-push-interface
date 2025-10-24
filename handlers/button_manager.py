@@ -4,6 +4,7 @@ from .track_handler import TrackHandler
 from .device_handler import DeviceHandler
 from .clock_handler import ClockHandler
 from .encoder_handler import EncoderHandler
+from .session_handler import SessionHandler
 
 class ButtonManager:
     def __init__(self, app):
@@ -13,10 +14,24 @@ class ButtonManager:
         self.device = DeviceHandler(app)
         self.clock = ClockHandler(app)
         self.encoder = EncoderHandler(app)
+        self.session = SessionHandler(app)
         
     def handle_button_press(self, button_name):
         """Route button presses to appropriate handlers"""
         print(f"Button pressed: '{button_name}'")
+        
+        # Handle session mode buttons first
+        if self.app.session_mode:
+            session_handlers = {
+                push2_python.constants.BUTTON_UPPER_ROW_1: self.session.handle_open_project,
+                push2_python.constants.BUTTON_UPPER_ROW_2: self.session.handle_save_project,
+                push2_python.constants.BUTTON_UPPER_ROW_3: self.session.handle_save_new_project,
+                push2_python.constants.BUTTON_UPPER_ROW_8: self.session.handle_confirm_session_action,
+            }
+            session_handler = session_handlers.get(button_name)
+            if session_handler:
+                session_handler()
+                return True
         
         # Track selection buttons
         if 'Lower Row' in button_name:
@@ -37,6 +52,7 @@ class ButtonManager:
             push2_python.constants.BUTTON_ADD_TRACK: self.device.handle_add_track,
             push2_python.constants.BUTTON_SETUP: self.device.handle_setup,
             push2_python.constants.BUTTON_METRONOME: self.clock.handle_metronome_button,
+            push2_python.constants.BUTTON_SESSION: self.session.handle_session_button,
         }
         
         handler = button_handlers.get(button_name)

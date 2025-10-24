@@ -22,6 +22,10 @@ class TestEncoderHandler:
         app.tracks = [None] * 8
         app.cc_values = {'encoder_1': {'cc': 7, 'value': 64}}
         app.ui = Mock()
+        app.session_mode = False
+        app.session_action = None
+        app.session_project_index = 0
+        app.project_manager = Mock()
         return app
         
     def test_tempo_encoder(self, mock_app):
@@ -68,6 +72,7 @@ class TestEncoderHandler:
     def test_channel_selection_encoder(self, mock_app):
         handler = EncoderHandler(mock_app)
         mock_app.device_selection_mode = True
+        mock_app.encoder_threshold = 1
         mock_device = Mock()
         mock_device.channel = 1
         mock_app.device_manager.get_device_by_index.return_value = mock_device
@@ -76,7 +81,7 @@ class TestEncoderHandler:
             result = handler.handle_encoder_rotation('track2', 3)
             
         assert result is True
-        assert mock_device.channel == 4
+        assert mock_device.channel == 2  # 1 + 1 (direction) = 2
         
     def test_channel_selection_bounds(self, mock_app):
         handler = EncoderHandler(mock_app)
@@ -93,6 +98,7 @@ class TestEncoderHandler:
     def test_clock_selection_encoder(self, mock_app):
         handler = EncoderHandler(mock_app)
         mock_app.clock_selection_mode = True
+        mock_app.encoder_threshold = 1
         
         with patch('handlers.encoder_handler.push2_python.constants.ENCODER_TRACK1_ENCODER', 'track1'):
             result = handler.handle_encoder_rotation('track1', 1)
@@ -102,6 +108,7 @@ class TestEncoderHandler:
         
     def test_cc_encoder(self, mock_app):
         handler = EncoderHandler(mock_app)
+        mock_app.encoder_threshold = 1
         mock_device = Mock()
         mock_device.channel = 1
         mock_device.port = 'test_port'
@@ -121,8 +128,8 @@ class TestEncoderHandler:
                 result = handler.handle_encoder_rotation('track1', 10)
                 
         assert result is True
-        assert mock_app.cc_values['encoder_1']['value'] == 74
-        mock_app.midi_output.send_cc.assert_called_with(1, 7, 74, 'test_port')
+        assert mock_app.cc_values['encoder_1']['value'] == 65  # 64 + 1 (direction) = 65
+        mock_app.midi_output.send_cc.assert_called_with(1, 7, 65, 'test_port')
         
     def test_cc_encoder_bounds(self, mock_app):
         handler = EncoderHandler(mock_app)
@@ -137,6 +144,56 @@ class TestEncoderHandler:
                 handler.handle_encoder_rotation('track1', 10)
                 
         assert mock_app.cc_values['encoder_1']['value'] == 127  # Should not exceed 127
+        
+    def test_session_project_encoder(self, mock_app):
+        handler = EncoderHandler(mock_app)
+        mock_app.session_mode = True
+        mock_app.session_action = 'open'
+        mock_app.encoder_threshold = 1
+        mock_app.project_manager.list_projects.return_value = ['project1', 'project2', 'project3']
+        
+        with patch('handlers.encoder_handler.push2_python.constants.ENCODER_TRACK1_ENCODER', 'track1'):
+            result = handler.handle_encoder_rotation('track1', 1)
+            
+        assert result is True
+        assert mock_app.session_project_index == 1
+        
+    def test_session_project_encoder_wraps(self, mock_app):
+        handler = EncoderHandler(mock_app)
+        mock_app.session_mode = True
+        mock_app.session_action = 'open'
+        mock_app.encoder_threshold = 1
+        mock_app.session_project_index = 2  # Last project
+        mock_app.project_manager.list_projects.return_value = ['project1', 'project2', 'project3']
+        
+        with patch('handlers.encoder_handler.push2_python.constants.ENCODER_TRACK1_ENCODER', 'track1'):
+            handler.handle_encoder_rotation('track1', 1)
+            
+        assert mock_app.session_project_index == 0  # Should wrap to 0
+        
+    def test_session_project_encoder_no_projects(self, mock_app):
+        handler = EncoderHandler(mock_app)
+        mock_app.session_mode = True
+        mock_app.session_action = 'open'
+        mock_app.project_manager.list_projects.return_value = []
+        
+        with patch('handlers.encoder_handler.push2_python.constants.ENCODER_TRACK1_ENCODER', 'track1'):
+            result = handler.handle_encoder_rotation('track1', 1)
+            
+        assert result is True
+        assert mock_app.session_project_index == 0  # Should remain unchanged
+        
+    def test_session_project_encoder_not_open_action(self, mock_app):
+        handler = EncoderHandler(mock_app)
+        mock_app.session_mode = True
+        mock_app.session_action = 'save'  # Not 'open'
+        mock_app.encoder_threshold = 1
+        
+        with patch('handlers.encoder_handler.push2_python.constants.ENCODER_TRACK1_ENCODER', 'track1'):
+            result = handler.handle_encoder_rotation('track1', 1)
+            
+        # Should fall through to CC encoder handling
+        assert result is True
         
     def test_unhandled_encoder(self, mock_app):
         handler = EncoderHandler(mock_app)

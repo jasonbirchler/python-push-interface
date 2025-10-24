@@ -84,14 +84,27 @@ class EncoderHandler:
         """Handle CC encoder rotation"""
         if encoder_name in self.app.cc_values:
             cc_info = self.app.cc_values[encoder_name]
-            new_value = max(0, min(127, cc_info["value"] + increment))
-            cc_info["value"] = new_value
+            
+            # Apply encoder threshold for CC values too
+            if not hasattr(self, '_cc_accumulators'):
+                self._cc_accumulators = {}
+            if encoder_name not in self._cc_accumulators:
+                self._cc_accumulators[encoder_name] = 0
+                
+            self._cc_accumulators[encoder_name] += increment
+            
+            if abs(self._cc_accumulators[encoder_name]) >= self.app.encoder_threshold:
+                direction = 1 if self._cc_accumulators[encoder_name] > 0 else -1
+                self._cc_accumulators[encoder_name] = 0
+                
+                new_value = max(0, min(127, cc_info["value"] + direction))
+                cc_info["value"] = new_value
 
-            # Send CC message
-            if self.app.tracks[self.app.current_track] is not None:
-                device = self.app.tracks[self.app.current_track]
-                self.app.midi_output.send_cc(device.channel, cc_info["cc"], new_value, device.port)
+                # Send CC message
+                if self.app.tracks[self.app.current_track] is not None:
+                    device = self.app.tracks[self.app.current_track]
+                    self.app.midi_output.send_cc(device.channel, cc_info["cc"], new_value, device.port)
 
-            # Update UI reference and trigger fast display update
-            self.app.ui.cc_values = self.app.cc_values
-            self.app.last_encoder_time = time.time()
+                # Update UI reference and trigger fast display update
+                self.app.ui.cc_values = self.app.cc_values
+                self.app.last_encoder_time = time.time()

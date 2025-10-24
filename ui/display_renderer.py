@@ -164,10 +164,6 @@ class DisplayRenderer:
         clock_source = midi_output.selected_clock_source or "Internal"
         ctx.show_text(f"Clock: {clock_source} | BPM: {sequencer.bpm} | {status}")
         
-        # Controls info
-        ctx.move_to(10, 100)
-        ctx.show_text("Tempo: BPM | Swing: MIDI Ch | Track 1-8: CC Controls")
-        
         # Octave
         ctx.move_to(self.WIDTH - 80, self.HEIGHT - 10)
         ctx.show_text(f"Oct: {octave}")

@@ -12,6 +12,14 @@ class DisplayRenderer:
         self.FONT_SIZE_MED = 18
         self.FONT_SIZE_LARGE = 36
         
+    def _trim_device_name(self, name):
+        """Trim device name at first space to keep display clean"""
+        trimmed_name = name
+        words = name.split(' ')
+        if len(words) > 1:
+            trimmed_name = ' '.join(words[:2])
+        return trimmed_name
+        
     def create_surface(self):
         """Create and setup Cairo surface"""
         surface = cairo.ImageSurface(cairo.FORMAT_RGB16_565, self.WIDTH, self.HEIGHT)
@@ -46,7 +54,7 @@ class DisplayRenderer:
         if device:
             ctx.set_font_size(self.FONT_SIZE_MED)
             ctx.move_to(10, 65)
-            ctx.show_text(f"{device.name} (Ch {device.channel})")
+            ctx.show_text(f"{self._trim_device_name(device.name)} (Ch {device.channel})")
         
         # Button labels
         ctx.set_font_size(self.FONT_SIZE_SMALL)
@@ -146,7 +154,7 @@ class DisplayRenderer:
         
         if tracks[current_track] is not None:
             device = tracks[current_track]
-            ctx.show_text(f"Track {current_track+1} - {device.name} - Ch{device.channel}")
+            ctx.show_text(f"Track {current_track+1} - {self._trim_device_name(device.name)} - Ch{device.channel}")
         else:
             ctx.show_text(f"Track {current_track+1} - No Device")
         

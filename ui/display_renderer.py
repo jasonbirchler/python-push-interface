@@ -29,6 +29,7 @@ class DisplayRenderer:
         ctx.rectangle(0, 0, self.WIDTH, self.HEIGHT)
         ctx.fill()
         ctx.set_source_rgb(1, 1, 1)
+        ctx.select_font_face("Helvetica", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         return surface, ctx
         
     def surface_to_frame(self, surface):
@@ -43,17 +44,17 @@ class DisplayRenderer:
         
         # Title
         ctx.set_font_size(self.FONT_SIZE_MED)
-        ctx.move_to(10, 45)
+        ctx.move_to(10, 55)
         if ui_state.track_edit_mode and ui_state.held_track_button is not None:
-            ctx.show_text(f"EDIT TRACK {ui_state.held_track_button+1}")
+            ctx.show_text(f"Edit track {ui_state.held_track_button+1}")
         else:
-            ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
+            ctx.show_text(f"Select device for track {current_track+1}")
         
         # Current device info
         device = device_manager.get_device_by_index(ui_state.device_selection_index)
         if device:
             ctx.set_font_size(self.FONT_SIZE_MED)
-            ctx.move_to(10, 65)
+            ctx.move_to(10, 75)
             ctx.show_text(f"{self._trim_device_name(device.name)} (Ch {device.channel})")
         
         # Button labels
@@ -73,7 +74,7 @@ class DisplayRenderer:
         
         ctx.set_font_size(self.FONT_SIZE_MED)
         ctx.move_to(10, 65)
-        ctx.show_text("SELECT CLOCK SOURCE")
+        ctx.show_text("Select Clock Source")
         
         clock_source = clock_sources[ui_state.clock_selection_index]
         ctx.set_font_size(self.FONT_SIZE_SMALL)
@@ -110,7 +111,7 @@ class DisplayRenderer:
         # Title
         ctx.set_font_size(self.FONT_SIZE_MED)
         ctx.move_to(10, 50)
-        ctx.show_text("SESSION OPTIONS")
+        ctx.show_text("Session Options")
         
         # Current action
         ctx.set_font_size(self.FONT_SIZE_SMALL)
@@ -140,7 +141,7 @@ class DisplayRenderer:
             encoder_key = f"encoder_{i+1}"
             if encoder_key in cc_values:
                 cc_info = cc_values[encoder_key]
-                x = i * (self.WIDTH // 8) + 2
+                x = i * (self.WIDTH // 8) + 10
                 name = cc_info["name"][:10] if len(cc_info["name"]) > 10 else cc_info["name"]
                 ctx.move_to(x, 12)
                 ctx.show_text(name)
@@ -149,14 +150,13 @@ class DisplayRenderer:
         
         # Track info
         ctx.set_font_size(self.FONT_SIZE_MED)
-        ctx.select_font_face("Helvetica", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        ctx.move_to(10, 45)
+        ctx.move_to(10, 55)
         
         if tracks[current_track] is not None:
             device = tracks[current_track]
             ctx.show_text(f"Track {current_track+1} - {self._trim_device_name(device.name)} - Ch{device.channel}")
         else:
-            ctx.show_text(f"Track {current_track+1} - No Device")
+            ctx.show_text(f"Press Add Track to get started")
         
         # Status info
         ctx.move_to(10, 85)

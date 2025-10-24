@@ -32,7 +32,7 @@ class SequencerApp:
         self.device_selection_index = 0
         self.pad_states = {}  # Track current pad colors to avoid unnecessary updates
         self.last_step = -1  # Track last step to minimize updates
-        self.encoder_accumulator = 0  # Accumulate encoder increments for device selection
+
         self.encoder_threshold = 1 if use_simulator else 13  # num of increments required before encoder changes value
         
         # Clock source selection

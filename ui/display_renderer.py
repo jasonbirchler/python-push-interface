@@ -12,6 +12,14 @@ class DisplayRenderer:
         self.FONT_SIZE_MED = 18
         self.FONT_SIZE_LARGE = 36
         
+    def _trim_device_name(self, name):
+        """Trim device name at first space to keep display clean"""
+        trimmed_name = name
+        words = name.split(' ')
+        if len(words) > 1:
+            trimmed_name = ' '.join(words[:2])
+        return trimmed_name
+        
     def create_surface(self):
         """Create and setup Cairo surface"""
         surface = cairo.ImageSurface(cairo.FORMAT_RGB16_565, self.WIDTH, self.HEIGHT)
@@ -21,6 +29,7 @@ class DisplayRenderer:
         ctx.rectangle(0, 0, self.WIDTH, self.HEIGHT)
         ctx.fill()
         ctx.set_source_rgb(1, 1, 1)
+        ctx.select_font_face("Helvetica", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
         return surface, ctx
         
     def surface_to_frame(self, surface):
@@ -35,18 +44,18 @@ class DisplayRenderer:
         
         # Title
         ctx.set_font_size(self.FONT_SIZE_MED)
-        ctx.move_to(10, 45)
+        ctx.move_to(10, 55)
         if ui_state.track_edit_mode and ui_state.held_track_button is not None:
-            ctx.show_text(f"EDIT TRACK {ui_state.held_track_button+1}")
+            ctx.show_text(f"Edit track {ui_state.held_track_button+1}")
         else:
-            ctx.show_text(f"SELECT DEVICE FOR TRACK {current_track+1}")
+            ctx.show_text(f"Select device for track {current_track+1}")
         
         # Current device info
         device = device_manager.get_device_by_index(ui_state.device_selection_index)
         if device:
             ctx.set_font_size(self.FONT_SIZE_MED)
-            ctx.move_to(10, 65)
-            ctx.show_text(f"{device.name} (Ch {device.channel})")
+            ctx.move_to(10, 75)
+            ctx.show_text(f"{self._trim_device_name(device.name)} (Ch {device.channel})")
         
         # Button labels
         ctx.set_font_size(self.FONT_SIZE_SMALL)
@@ -65,7 +74,7 @@ class DisplayRenderer:
         
         ctx.set_font_size(self.FONT_SIZE_MED)
         ctx.move_to(10, 65)
-        ctx.show_text("SELECT CLOCK SOURCE")
+        ctx.show_text("Select Clock Source")
         
         clock_source = clock_sources[ui_state.clock_selection_index]
         ctx.set_font_size(self.FONT_SIZE_SMALL)
@@ -102,7 +111,7 @@ class DisplayRenderer:
         # Title
         ctx.set_font_size(self.FONT_SIZE_MED)
         ctx.move_to(10, 50)
-        ctx.show_text("SESSION OPTIONS")
+        ctx.show_text("Session Options")
         
         # Current action
         ctx.set_font_size(self.FONT_SIZE_SMALL)
@@ -132,7 +141,7 @@ class DisplayRenderer:
             encoder_key = f"encoder_{i+1}"
             if encoder_key in cc_values:
                 cc_info = cc_values[encoder_key]
-                x = i * (self.WIDTH // 8) + 2
+                x = i * (self.WIDTH // 8) + 10
                 name = cc_info["name"][:10] if len(cc_info["name"]) > 10 else cc_info["name"]
                 ctx.move_to(x, 12)
                 ctx.show_text(name)
@@ -141,29 +150,19 @@ class DisplayRenderer:
         
         # Track info
         ctx.set_font_size(self.FONT_SIZE_MED)
-        ctx.select_font_face("Helvetica", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        ctx.move_to(10, 45)
+        ctx.move_to(10, 55)
         
         if tracks[current_track] is not None:
             device = tracks[current_track]
-            ctx.show_text(f"Track {current_track+1} - {device.name} - Ch{device.channel}")
+            ctx.show_text(f"Track {current_track+1} - {self._trim_device_name(device.name)} - Ch{device.channel}")
         else:
-            ctx.show_text(f"Track {current_track+1} - No Device")
-        
-        # Device info
-        ctx.set_font_size(self.FONT_SIZE_SMALL)
-        ctx.move_to(10, 65)
-        ctx.show_text(f"MIDI Ports: {device_manager.get_device_count()}")
+            ctx.show_text(f"Press Add Track to get started")
         
         # Status info
         ctx.move_to(10, 85)
         status = "PLAYING" if sequencer.is_playing else "STOPPED"
         clock_source = midi_output.selected_clock_source or "Internal"
         ctx.show_text(f"Clock: {clock_source} | BPM: {sequencer.bpm} | {status}")
-        
-        # Controls info
-        ctx.move_to(10, 100)
-        ctx.show_text("Tempo: BPM | Swing: MIDI Ch | Track 1-8: CC Controls")
         
         # Octave
         ctx.move_to(self.WIDTH - 80, self.HEIGHT - 10)

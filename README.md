@@ -94,6 +94,7 @@ python -m pytest tests/ -q
 - `tests/test_sequencer.py` - Core sequencer logic and patterns
 - `tests/test_midi_output.py` - MIDI communication and port management
 - `tests/test_device_manager.py` - Device discovery and CC mapping
+- `tests/test_project_manager.py` - Project save/load functionality
 - `tests/test_handlers/` - User interface handlers (transport, track, device, clock, encoder)
 
 Tests use mocking to simulate hardware dependencies (Push 2, MIDI devices) so they can run without physical hardware.

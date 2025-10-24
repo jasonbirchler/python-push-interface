@@ -23,40 +23,7 @@ class DeviceHandler:
         else:
             print("Hold a track button and press Setup to edit track")
             
-    def handle_device_selection_encoder(self, increment):
-        """Handle master encoder during device selection"""
-        if self.app.device_selection_mode:
-            # Accumulate encoder increments for more natural feel
-            self.app.encoder_accumulator += increment
-            threshold = self.app.encoder_threshold
-            
-            if abs(self.app.encoder_accumulator) >= threshold:
-                device_count = self.app.device_manager.get_device_count()
-                direction = 1 if self.app.encoder_accumulator > 0 else -1
-                self.app.device_selection_index = (self.app.device_selection_index + direction) % device_count
-                self.app.encoder_accumulator = 0  # Reset accumulator
-                print(f"Device selection: {self.app.device_selection_index}")
-                self.app.last_encoder_time = time.time()
-                
-    def handle_channel_selection_encoder(self, increment):
-        """Handle swing encoder during device selection for channel adjustment"""
-        if self.app.device_selection_mode:
-            device = self.app.device_manager.get_device_by_index(self.app.device_selection_index)
-            if device:
-                new_channel = max(1, min(16, device.channel + increment))
-                if new_channel != device.channel:
-                    device.channel = new_channel
-                    print(f"Device {device.name} MIDI channel: {new_channel}")
-                    self.app.last_encoder_time = time.time()
-        elif self.app.tracks[self.app.current_track] is not None:
-            # MIDI channel selection for current track
-            device = self.app.tracks[self.app.current_track]
-            new_channel = max(1, min(16, device.channel + increment))
-            if new_channel != device.channel:
-                device.channel = new_channel
-                self.app.sequencer.set_track_channel(self.app.current_track, new_channel)
-                print(f"Track {self.app.current_track} MIDI channel: {new_channel}")
-                self.app.last_encoder_time = time.time()
+
                 
     def handle_confirm_selection(self):
         """Handle device selection confirmation"""

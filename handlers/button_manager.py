@@ -3,6 +3,7 @@ from .transport_handler import TransportHandler
 from .track_handler import TrackHandler
 from .device_handler import DeviceHandler
 from .clock_handler import ClockHandler
+from .encoder_handler import EncoderHandler
 
 class ButtonManager:
     def __init__(self, app):
@@ -11,6 +12,7 @@ class ButtonManager:
         self.track = TrackHandler(app)
         self.device = DeviceHandler(app)
         self.clock = ClockHandler(app)
+        self.encoder = EncoderHandler(app)
         
     def handle_button_press(self, button_name):
         """Route button presses to appropriate handlers"""
@@ -51,41 +53,5 @@ class ButtonManager:
             self.track.handle_track_release()
             
     def handle_encoder_rotation(self, encoder_name, increment):
-        """Route encoder rotations to appropriate handlers"""
-        # Handle tempo encoder
-        if encoder_name == push2_python.constants.ENCODER_TEMPO_ENCODER:
-            self.transport.handle_tempo_encoder(increment)
-            return True
-            
-        # Handle device/channel selection encoders when in device selection mode
-        if self.app.device_selection_mode:
-            if encoder_name == push2_python.constants.ENCODER_TRACK1_ENCODER:
-                self.device.handle_device_selection_encoder(increment)
-                return True
-            elif encoder_name == push2_python.constants.ENCODER_TRACK2_ENCODER:
-                self.device.handle_channel_selection_encoder(increment)
-                return True
-                
-        # Handle clock selection encoder when in clock selection mode
-        if self.app.clock_selection_mode:
-            if encoder_name == push2_python.constants.ENCODER_TRACK1_ENCODER:
-                self.clock.handle_clock_selection_encoder(increment)
-                return True
-                
-        # Handle CC encoders (all 8 track encoders when not in device selection)
-        track_encoders = {
-            push2_python.constants.ENCODER_TRACK1_ENCODER: 'encoder_1',
-            push2_python.constants.ENCODER_TRACK2_ENCODER: 'encoder_2',
-            push2_python.constants.ENCODER_TRACK3_ENCODER: 'encoder_3',
-            push2_python.constants.ENCODER_TRACK4_ENCODER: 'encoder_4',
-            push2_python.constants.ENCODER_TRACK5_ENCODER: 'encoder_5',
-            push2_python.constants.ENCODER_TRACK6_ENCODER: 'encoder_6',
-            push2_python.constants.ENCODER_TRACK7_ENCODER: 'encoder_7',
-            push2_python.constants.ENCODER_TRACK8_ENCODER: 'encoder_8',
-        }
-        
-        if encoder_name in track_encoders and not self.app.device_selection_mode:
-            self.app._handle_cc_encoder(track_encoders[encoder_name], increment)
-            return True
-            
-        return False  # Indicates encoder not handled
+        """Route encoder rotations to encoder handler"""
+        return self.encoder.handle_encoder_rotation(encoder_name, increment)

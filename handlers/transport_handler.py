@@ -20,7 +20,3 @@ class TransportHandler:
         self.app.sequencer.current_step = 0
         self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
         
-    def handle_tempo_encoder(self, increment):
-        """Handle tempo encoder rotation"""
-        new_bpm = max(60, min(200, self.app.sequencer.bpm + increment))
-        self.app.sequencer.set_bpm(new_bpm)

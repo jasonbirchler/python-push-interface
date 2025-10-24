@@ -15,15 +15,7 @@ class ClockHandler:
         else:
             print("Clock selection mode disabled")
             
-    def handle_clock_selection_encoder(self, increment):
-        """Handle encoder for clock source selection"""
-        if self.app.clock_selection_mode:
-            clock_sources = self.app.midi_output.clock_sources
-            if clock_sources:
-                direction = 1 if increment > 0 else -1
-                self.app.clock_selection_index = (self.app.clock_selection_index + direction) % len(clock_sources)
-                print(f"Clock selection: {self.app.clock_selection_index}")
-                self.app.last_encoder_time = time.time()
+
                 
     def handle_confirm_clock_selection(self):
         """Handle clock source confirmation"""

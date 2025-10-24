@@ -209,10 +209,7 @@ class SequencerApp:
                 # Turn off OK LED
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, DEFAULT_BUTTON_STATE)
                 
-    def _handle_remaining_encoders(self, encoder_name, increment):
-        """Handle encoders not yet moved to button manager"""
-        # Handle CC encoders and other remaining encoders here
-        pass  # Placeholder for now
+
 
     def _setup_handlers(self):
         @push2_python.on_pad_pressed()
@@ -257,10 +254,7 @@ class SequencerApp:
                 
         @push2_python.on_encoder_rotated()
         def on_encoder_rotated(push, encoder_name, increment):
-            # Try button manager first
-            if not self.button_manager.handle_encoder_rotation(encoder_name, increment):
-                # Handle remaining encoders not in button manager
-                self._handle_remaining_encoders(encoder_name, increment)
+            self.button_manager.handle_encoder_rotation(encoder_name, increment)
 
     def _init_cc_values(self):
         device = self.device_manager.get_current_device()
@@ -275,21 +269,7 @@ class SequencerApp:
                 }
             print(f"Initialized {len(self.cc_values)} CC mappings: {list(self.cc_values.keys())}")  # Debug
 
-    def _handle_cc_encoder(self, encoder_name, increment):
-        if encoder_name in self.cc_values:
-            cc_info = self.cc_values[encoder_name]
-            new_value = max(0, min(127, cc_info["value"] + increment))
-            cc_info["value"] = new_value
 
-            # Send CC message
-            if self.tracks[self.current_track] is not None:
-                device = self.tracks[self.current_track]
-                print(f"Sending CC {cc_info['cc']} = {new_value} on channel {device.channel} port {device.port}")
-                self.midi_output.send_cc(device.channel, cc_info["cc"], new_value, device.port)
-
-            # Update UI reference and trigger fast display update
-            self.ui.cc_values = self.cc_values
-            self.last_encoder_time = time.time()
 
     def _add_track(self):
         print("_add_track called")

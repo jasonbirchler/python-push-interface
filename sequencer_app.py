@@ -524,7 +524,8 @@ class SequencerApp:
                 else:
                     update_interval = self.normal_refresh_rate
 
-                # MIDI input uses callbacks, no polling needed
+                # Poll MIDI input for clock messages (needed for macOS)
+                self.midi_output.poll_midi_input()
                 
                 # Update display
                 frame = self.ui.get_current_frame()

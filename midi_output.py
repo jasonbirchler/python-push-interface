@@ -1,5 +1,6 @@
 import mido
 from typing import Optional
+import platform
 
 class MidiOutput:
     def __init__(self):
@@ -37,11 +38,20 @@ class MidiOutput:
         elif source_name in self.clock_sources:
             self._disconnect_clock_source()
             try:
-                port = mido.open_input(source_name)
-                self.input_ports[source_name] = port
-                port.callback = self._handle_midi_message
-                self.selected_clock_source = source_name
-                print(f"Clock source: {source_name}")
+                # macOS-specific handling to avoid callback freeze
+                if platform.system() == 'Darwin':  # macOS
+                    print(f"macOS detected - clock source selection display only for {source_name}")
+                    # On macOS, just set the selection for display but don't open the port
+                    # This avoids the CoreMIDI freeze issue with certain devices
+                    self.selected_clock_source = source_name
+                    print(f"Clock source: {source_name} (display only on macOS)")
+                else:
+                    # Linux/Pi - use callbacks as normal
+                    port = mido.open_input(source_name)
+                    self.input_ports[source_name] = port
+                    port.callback = self._handle_midi_message
+                    self.selected_clock_source = source_name
+                    print(f"Clock source: {source_name}")
             except Exception as e:
                 print(f"Failed to connect to clock source {source_name}: {e}")
                 
@@ -51,6 +61,12 @@ class MidiOutput:
             port.close()
         self.input_ports.clear()
             
+    def poll_midi_input(self):
+        """Poll MIDI input for messages (call from main loop)"""
+        for port in self.input_ports.values():
+            for msg in port.iter_pending():
+                self._handle_midi_message(msg)
+                
     def _handle_midi_message(self, msg):
         """Handle incoming MIDI message"""
         if self.sequencer:

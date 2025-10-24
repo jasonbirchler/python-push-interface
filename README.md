@@ -98,3 +98,22 @@ python -m pytest tests/ -q
 - `tests/test_handlers/` - User interface handlers (transport, track, device, clock, encoder)
 
 Tests use mocking to simulate hardware dependencies (Push 2, MIDI devices) so they can run without physical hardware.
+
+## CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- **Automated Testing**: Tests run automatically on every push and pull request
+- **Multi-Python Support**: Tests run on Python 3.9, 3.10, 3.11, and 3.12
+- **Coverage Reporting**: Coverage reports are generated and displayed in CI logs
+- **Branch Protection**: Configure branch protection rules in GitHub to require passing tests before merging
+
+### Setting up Branch Protection
+
+1. Go to your GitHub repository → Settings → Branches
+2. Add a branch protection rule for `main`
+3. Enable "Require status checks to pass before merging"
+4. Select "Tests" as a required status check
+5. Enable "Require branches to be up to date before merging"
+
+This ensures no code can be merged to main without passing all tests.

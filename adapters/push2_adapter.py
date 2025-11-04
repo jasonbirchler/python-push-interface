@@ -105,7 +105,7 @@ class Push2Adapter(UIAdapter):
     def on_play_state_changed(self, event: SequencerEvent) -> None:
         """Handle play state change events"""
         self._update_pad_colors()
-    
+
     def on_pattern_modified(self, event: SequencerEvent) -> None:
         """Handle pattern modification events"""
         self._update_pad_colors()
@@ -209,7 +209,10 @@ class Push2Adapter(UIAdapter):
                 self.push.buttons.set_button_color(button_constant, color)
     
     def _update_pad_colors(self):
-        """Update pad colors"""
+        """Update pad colors based on current sequencer state"""
+        # Small delay to prevent rapid successive calls from causing ghost pads
+        time.sleep(0.001)
+        
         # Clear all step sequencer pads first
         for row in range(6, 8):
             for col in range(8):

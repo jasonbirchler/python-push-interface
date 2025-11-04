@@ -27,6 +27,12 @@ class EncoderHandler:
                 self._handle_clock_selection_encoder(increment)
                 return True
                 
+        # Handle session mode project selection encoder
+        if self.app.session_mode and self.app.session_action == 'open':
+            if encoder_name == push2_python.constants.ENCODER_TRACK1_ENCODER:
+                self._handle_project_selection_encoder(increment)
+                return True
+                
         # Handle CC encoders (all 8 track encoders when not in device selection)
         track_encoders = {
             push2_python.constants.ENCODER_TRACK1_ENCODER: 'encoder_1',
@@ -79,6 +85,14 @@ class EncoderHandler:
         if clock_count > 0:
             self.app.clock_selection_index = (self.app.clock_selection_index + increment) % clock_count
             self.app.last_encoder_time = time.time()
+            
+    def _handle_project_selection_encoder(self, increment):
+        """Handle project selection encoder in session mode"""
+        project_count = len(self.app.project_manager.list_projects())
+        if project_count > 0:
+            self.app.session_project_index = (self.app.session_project_index + increment) % project_count
+            self.app.last_encoder_time = time.time()
+            print(f"Project selection: {self.app.session_project_index}")
             
     def _handle_cc_encoder(self, encoder_name, increment):
         """Handle CC encoder rotation"""

@@ -285,6 +285,28 @@ class Push2Adapter(UIAdapter):
                 }
             self.ui.cc_values = self.cc_values
     
+    def _execute_session_action(self):
+        """Execute the selected session action"""
+        match self.session_action:
+            case 'open':
+                projects = self.project_manager.list_projects()
+                if projects and 0 <= self.session_project_index < len(projects):
+                    project_name = projects[self.session_project_index]
+                    self.project_manager.load_project(project_name)
+                    self.session_mode = False
+                    self.session_action = None
+            case 'save':
+                if self.project_manager.current_project_file:
+                    self.project_manager.save_project(self.project_manager.current_project_file)
+                    self.session_mode = False
+                    self.session_action = None
+            case 'save_new':
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                project_name = f"project_{timestamp}"
+                self.project_manager.save_project(project_name)
+                self.session_mode = False
+                self.session_action = None
+    
     def run(self) -> None:
         """Start the Push2 UI event loop"""
         print("Multi-Track Sequencer running...")

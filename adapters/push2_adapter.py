@@ -36,7 +36,6 @@ class Push2Adapter(UIAdapter):
         self.current_track = 0
         self.device_selection_mode = False
         self.device_selection_index = 0
-        self.pad_states = {}
         self.last_step = -1
         self.encoder_accumulator = 0
         self.encoder_threshold = 1 if use_simulator else 13
@@ -105,7 +104,6 @@ class Push2Adapter(UIAdapter):
     
     def on_play_state_changed(self, event: SequencerEvent) -> None:
         """Handle play state change events"""
-        # Force pad update when play state changes
         self._update_pad_colors()
     
     def on_pattern_modified(self, event: SequencerEvent) -> None:
@@ -138,7 +136,6 @@ class Push2Adapter(UIAdapter):
                 step = (row - 6) * 8 + col
                 if step < 16 and step == self.held_step_pad:
                     self.held_step_pad = None
-                    self._update_pad_colors()
                     self._update_octave_buttons()
                     self._update_delete_button()
             
@@ -213,45 +210,33 @@ class Push2Adapter(UIAdapter):
     
     def _update_pad_colors(self):
         """Update pad colors"""
-        # Always update - let the pad state tracking handle efficiency
-        self.last_step = self.sequencer.current_step
+        # Clear all step sequencer pads first
+        for row in range(6, 8):
+            for col in range(8):
+                self.push.pads.set_pad_color((row, col), 'black')
         
-        # Clear all pads first (only if not initialized)
-        if not self.pad_states:
-            for row in range(8):
-                for col in range(8):
-                    self.push.pads.set_pad_color((row, col), 'black')
-                    self.pad_states[(row, col)] = 'black'
-        
-        # Update step sequencer pad colors (rows 6-7 only)
+        # Set step pad colors
         for step in range(16):
-            row = 6 + (step // 8)  # Row 6 for steps 0-7, row 7 for steps 8-15
+            row = 6 + (step // 8)
             col = step % 8
-
-            # Determine color based on state (priority order)
+            
             if step == self.sequencer.current_step and self.sequencer.is_playing:
-                color = 'green'  # Current playing step (highest priority)
+                color = 'green'
             elif (self.tracks[self.current_track] is not None and
                   self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(step)):
-                color = self.track_colors[self.current_track]  # Step has notes (track color)
+                color = self.track_colors[self.current_track]
             else:
-                color = 'white'  # Empty step
-
-            # Only update if color changed
-            if self.pad_states.get((row, col)) != color:
-                self.push.pads.set_pad_color((row, col), color)
-                self.pad_states[(row, col)] = color
-
-        # Update note input pads (row 0, first 12 pads only)
+                color = 'white'
+                
+            self.push.pads.set_pad_color((row, col), color)
+        
+        # Update note input pads
         for note_pad in range(12):
             if self.held_step_pad is not None and self.tracks[self.current_track] is not None:
                 color = 'blue'
             else:
                 color = 'white'
-                
-            if self.pad_states.get((0, note_pad)) != color:
-                self.push.pads.set_pad_color((0, note_pad), color)
-                self.pad_states[(0, note_pad)] = color
+            self.push.pads.set_pad_color((0, note_pad), color)
     
     def _update_octave_buttons(self):
         """Update octave button colors"""
@@ -342,9 +327,6 @@ class Push2Adapter(UIAdapter):
 
                 # Poll MIDI input for clock messages
                 self.midi_output.poll_midi_input()
-                
-                # Update pad colors every cycle (like original)
-                self._update_pad_colors()
                 
                 # Update display
                 frame = self.ui.get_current_frame()

@@ -1,4 +1,5 @@
 import push2_python
+from core.sequencer_event_bus import SequencerEvent, EventType
 
 class TrackHandler:
     def __init__(self, app):
@@ -14,8 +15,10 @@ class TrackHandler:
             self.app._init_cc_values_for_track()
             self.app._update_mute_solo_buttons()
             # Force pad update when switching tracks
-            self.app.pad_states = {}
-            self.app._update_pad_colors()
+            self.app.event_bus.publish(SequencerEvent(
+                type=EventType.PATTERN_MODIFIED,
+                data={'track': track_num, 'action': 'track_switch'}
+            ))
             
     def handle_track_release(self):
         """Handle track button release"""

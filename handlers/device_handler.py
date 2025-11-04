@@ -1,5 +1,6 @@
 import push2_python
 import time
+from core.sequencer_event_bus import SequencerEvent, EventType
 
 class DeviceHandler:
     def __init__(self, app):
@@ -49,8 +50,10 @@ class DeviceHandler:
                     self.app._update_track_buttons()
                     self.app._init_cc_values_for_track()
                     # Force pad update after confirming device
-                    self.app.pad_states = {}
-                    self.app._update_pad_colors()
+                    self.app.event_bus.publish(SequencerEvent(
+                        type=EventType.PATTERN_MODIFIED,
+                        data={'track': target_track, 'action': 'device_assigned'}
+                    ))
                 else:
                     print(f"Failed to connect to {device.name} - track not assigned")
                     # Stay in device selection mode to try another device

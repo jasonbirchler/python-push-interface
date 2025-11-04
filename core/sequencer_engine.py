@@ -14,9 +14,16 @@ class SequencerEngine:
         
         # Use existing Sequencer internally but expose clean interface
         self._internal_sequencer = Sequencer(midi_output)
-        # No callback - use pure event-driven approach
+        # Inject event publishing into internal sequencer
+        self._internal_sequencer._event_bus = self.event_bus
+        self._internal_sequencer._publish_step_event = self._publish_step_event
         
-    # Removed callback - using main loop updates instead
+    def _publish_step_event(self):
+        """Publish step change event"""
+        self.event_bus.publish(SequencerEvent(
+            type=EventType.STEP_CHANGED,
+            data={'current_step': self.current_step}
+        ))
     
     # Command methods (state-changing operations)
     def play(self) -> None:

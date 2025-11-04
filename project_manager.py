@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from core.sequencer_event_bus import SequencerEvent, EventType
 
 class ProjectManager:
     def __init__(self, sequencer_app):
@@ -100,8 +101,10 @@ class ProjectManager:
             # Update UI
             self.app._update_track_buttons()
             self.app._init_cc_values_for_track()
-            self.app.pad_states = {}
-            self.app._update_pad_colors()
+            self.app.event_bus.publish(SequencerEvent(
+                type=EventType.PATTERN_MODIFIED,
+                data={'action': 'project_loaded'}
+            ))
             
             self.current_project_file = filename
             print(f"Project loaded: {filepath}")

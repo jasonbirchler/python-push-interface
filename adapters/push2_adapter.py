@@ -78,6 +78,12 @@ class Push2Adapter(UIAdapter):
         self.ui.cc_values = self.cc_values
         self.ui.app_ref = self
         
+        # Set app reference on internal sequencer for track audibility checks
+        self.sequencer._internal_sequencer.app_ref = self
+        
+        # Set up pad color callback (like original implementation)
+        self.sequencer._internal_sequencer._update_pad_colors_callback = self._update_pad_colors
+        
         # Initialize button manager
         self.button_manager = ButtonManager(self)
         

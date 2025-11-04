@@ -14,6 +14,7 @@ class TrackHandler:
             self.app._update_track_buttons()
             self.app._init_cc_values_for_track()
             self.app._update_mute_solo_buttons()
+            self.app._update_pad_colors()
             # Force pad update when switching tracks
             self.app.event_bus.publish(SequencerEvent(
                 type=EventType.PATTERN_MODIFIED,

@@ -86,7 +86,7 @@ python -m pytest tests/test_handlers/ -v
 Run tests quietly (just pass/fail count):
 
 ```bash
-python -m pytest tests/ -q
+python -m pytest tests/
 ```
 
 ### Test Structure

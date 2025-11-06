@@ -10,6 +10,7 @@ class EventType(Enum):
     BPM_CHANGED = "bpm_changed"
     TRACK_CHANGED = "track_changed"
     PATTERN_MODIFIED = "pattern_modified"
+    PATTERN_LENGTH_CHANGED = "pattern_length_changed"
 
 @dataclass
 class SequencerEvent:

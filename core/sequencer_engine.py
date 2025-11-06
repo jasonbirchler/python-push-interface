@@ -86,6 +86,31 @@ class SequencerEngine:
         """Set device for track"""
         self._internal_sequencer.set_track_device(track, device)
     
+    # Polyrhythmic functionality
+    def set_pattern_length(self, track: int, length: int) -> None:
+        """Set pattern length for specific track (1-64)"""
+        old_length = self.get_pattern_length(track)
+        self._internal_sequencer.set_pattern_length(track, length)
+        
+        if old_length != length:
+            self.event_bus.publish(SequencerEvent(
+                type=EventType.PATTERN_LENGTH_CHANGED,
+                data={'track': track, 'length': length, 'old_length': old_length}
+            ))
+
+    def get_pattern_length(self, track: int) -> int:
+        """Get pattern length for specific track"""
+        return self._internal_sequencer.get_pattern_length(track)
+
+    def get_current_step(self, track: int) -> int:
+        """Get current step for specific track"""
+        return self._internal_sequencer.get_current_step(track)
+
+    @property
+    def track_steps(self) -> List[int]:
+        """Get current step for all tracks"""
+        return self._internal_sequencer.current_steps.copy()
+    
     # Query methods (read-only)
     @property
     def is_playing(self) -> bool:
@@ -94,8 +119,8 @@ class SequencerEngine:
     
     @property
     def current_step(self) -> int:
-        """Get current step"""
-        return self._internal_sequencer.current_step
+        """Get current step for compatibility (use track_steps for polyrhythmic)"""
+        return self._internal_sequencer.current_steps[0]  # Return first track for compatibility
     
     @property
     def bpm(self) -> int:

@@ -11,15 +11,17 @@ class Note:
 
 class Pattern:
     def __init__(self, length: int = 16):
-        self.length = length
+        self.length = max(1, min(64, length))  # Clamp to 1-64
         self.notes: List[Note] = []
         self.current_step = 0
 
     def add_note(self, step: int, note: int, velocity: int = 100):
-        # Remove existing note at this step if any
-        self.notes = [n for n in self.notes if n.step != step]
-        # Add new note
-        self.notes.append(Note(step, note, velocity))
+        # Only add note if step is within pattern length
+        if 0 <= step < self.length:
+            # Remove existing note at this step if any
+            self.notes = [n for n in self.notes if n.step != step]
+            # Add new note
+            self.notes.append(Note(step, note, velocity))
 
     def remove_note(self, step: int):
         self.notes = [n for n in self.notes if n.step != step]
@@ -37,7 +39,7 @@ class Sequencer:
         self.tracks = [Pattern() for _ in range(8)]  # 8 tracks
         self.track_channels = [1] * 8  # MIDI channel per track
         self.is_playing = False
-        self.current_step = 0
+        self.current_steps = [0] * 8  # Individual step counter per track
         self.current_track = 0  # Active track for editing
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -48,6 +50,17 @@ class Sequencer:
         self._clock_count = 0
         self._last_clock_time = None
         self._clock_times = []
+
+    @property
+    def current_step(self) -> int:
+        """Backward compatibility property - return current step of first track"""
+        return self.current_steps[0] if self.current_steps else 0
+    
+    @current_step.setter
+    def current_step(self, value: int):
+        """Backward compatibility setter - set first track's step"""
+        if self.current_steps:
+            self.current_steps[0] = value
 
     def set_bpm(self, bpm: int):
         self.bpm = bpm
@@ -68,6 +81,33 @@ class Sequencer:
         if not hasattr(self, '_track_devices'):
             self._track_devices = {}
         self._track_devices[track] = device
+
+    def set_pattern_length(self, track: int, length: int):
+        """Set pattern length for specific track (1-64)"""
+        if 0 <= track < 8:
+            old_length = self.tracks[track].length
+            self.tracks[track].length = max(1, min(64, length))
+            
+            # Clear notes beyond new length
+            if old_length > self.tracks[track].length:
+                self.tracks[track].notes = [
+                    note for note in self.tracks[track].notes
+                    if note.step < self.tracks[track].length
+                ]
+            
+            print(f"Track {track} pattern length: {old_length} -> {self.tracks[track].length}")
+
+    def get_pattern_length(self, track: int) -> int:
+        """Get pattern length for specific track"""
+        if 0 <= track < 8:
+            return self.tracks[track].length
+        return 16  # Default
+
+    def get_current_step(self, track: int) -> int:
+        """Get current step for specific track"""
+        if 0 <= track < 8:
+            return self.current_steps[track]
+        return 0
 
     def _send_transport_to_active_devices(self, message_type):
         """Send start/stop only to devices with send_transport=true"""
@@ -117,7 +157,7 @@ class Sequencer:
         """Handle incoming MIDI start"""
         print("MIDI Start received - switching to external sync")
         self._clock_count = 0
-        self.current_step = 0
+        self.current_steps = [0] * 8  # Reset all track step counters
         self.external_sync = True
         self.play()
         
@@ -181,27 +221,29 @@ class Sequencer:
             time.sleep(0.01)  # Small sleep to prevent CPU spinning
             
     def _trigger_step(self):
-        """Trigger notes for current step"""
+        """Trigger notes for current step - advance each track independently"""
         # Send note-off for previous step's notes first
         for channel, note, port_name in self.current_step_notes:
             self.midi_output.send_note_off(channel, note, port_name)
             self._active_notes.discard((channel, note, port_name))
         self.current_step_notes.clear()
         
-        # Play notes for all tracks at current step
+        # Play notes for all tracks at their current steps
         total_notes = 0
         for track_idx, track_pattern in enumerate(self.tracks):
             # Check if track should be audible
             if hasattr(self, 'app_ref') and self.app_ref and not self.app_ref._is_track_audible(track_idx):
                 continue
                 
-            notes_at_step = track_pattern.get_notes_at_step(self.current_step)
+            # Use this track's current step position
+            current_track_step = self.current_steps[track_idx]
+            notes_at_step = track_pattern.get_notes_at_step(current_track_step)
             total_notes += len(notes_at_step)
 
             for note in notes_at_step:
                 channel = self.track_channels[track_idx]
                 port_name = getattr(self, '_track_ports', {}).get(track_idx)
-                print(f"Track {track_idx} Step {self.current_step}: Playing note {note.note} on channel {channel} port {port_name}")
+                print(f"Track {track_idx} Step {current_track_step}: Playing note {note.note} on channel {channel} port {port_name}")
                 self.midi_output.send_note_on(channel, note.note, note.velocity, port_name)
                 self._active_notes.add((channel, note.note, port_name))
                 self.current_step_notes.add((channel, note.note, port_name))
@@ -210,18 +252,22 @@ class Sequencer:
         step_duration = 60.0 / (self.bpm * 4)
         self.note_off_time = time.time() + step_duration * 0.9
 
-        print(f"Step {self.current_step}: {total_notes} total notes across all tracks")
+        print(f"Polyrhythmic trigger: {total_notes} total notes across all tracks")
         
-        # Store previous step before advancing
-        previous_step = self.current_step
+        # Store previous steps before advancing
+        previous_steps = self.current_steps.copy()
         
-        # Advance to next step
-        self.current_step = (self.current_step + 1) % 16
+        # Advance each track independently based on its pattern length
+        for track_idx, track_pattern in enumerate(self.tracks):
+            self.current_steps[track_idx] = (self.current_steps[track_idx] + 1) % track_pattern.length
         
         # Call pad update callback if available
         if hasattr(self, '_update_pad_colors_callback') and self._update_pad_colors_callback:
             self._update_pad_colors_callback()
         
-        # Only publish step change event if step actually changed
-        if hasattr(self, '_publish_step_event') and self._publish_step_event and previous_step != self.current_step:
-            self._publish_step_event()
+        # Only publish step change event if any track step actually changed
+        if hasattr(self, '_publish_step_event') and self._publish_step_event:
+            for track_idx in range(8):
+                if previous_steps[track_idx] != self.current_steps[track_idx]:
+                    self._publish_step_event()
+                    break

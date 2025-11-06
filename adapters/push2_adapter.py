@@ -98,6 +98,7 @@ class Push2Adapter(UIAdapter):
         self.event_bus.subscribe(EventType.STEP_CHANGED, self.on_step_changed)
         self.event_bus.subscribe(EventType.PLAY_STATE_CHANGED, self.on_play_state_changed)
         self.event_bus.subscribe(EventType.PATTERN_MODIFIED, self.on_pattern_modified)
+        self.event_bus.subscribe(EventType.PATTERN_LENGTH_CHANGED, self.on_pattern_length_changed)
     
     def on_sequencer_event(self, event: SequencerEvent) -> None:
         """Handle sequencer events (required by UIAdapter)"""
@@ -116,21 +117,32 @@ class Push2Adapter(UIAdapter):
         """Handle pattern modification events"""
         self._update_pad_colors()
     
+    def on_pattern_length_changed(self, event: SequencerEvent) -> None:
+        """Handle pattern length change events"""
+        track = event.data['track']
+        length = event.data['length']
+        print(f"Track {track} pattern length changed to {length}")
+        self._update_pad_colors()
+    
     def _setup_push2_handlers(self):
         """Setup Push2 event handlers"""
         @push2_python.on_pad_pressed()
         def on_pad_pressed(push, pad_n, pad_ij, velocity):
             row, col = pad_ij
-            # Bottom two rows for step sequencer (16 steps)
+            # Bottom two rows for step sequencer (variable length)
             if row >= 6:  # Bottom two rows
                 step = (row - 6) * 8 + col
                 if step < 16:
-                    self.held_step_pad = step
-                    self._update_octave_buttons()
-                    self._update_delete_button()
+                    # Only allow step selection within current pattern length
+                    active_pattern_length = self.sequencer.get_pattern_length(self.current_track)
+                    if step < active_pattern_length:
+                        self.held_step_pad = step
+                        self._update_octave_buttons()
+                        self._update_delete_button()
             # Top row for note input (12 notes)
             elif row == 0 and col < 12:
-                if self.held_step_pad is not None and self.tracks[self.current_track] is not None:
+                if (self.held_step_pad is not None and
+                    self.tracks[self.current_track] is not None):
                     note = 60 + (self.octave - 4) * 12 + col
                     print(f"Adding note {note} to track {self.current_track} step {self.held_step_pad}")
                     self.sequencer.add_note(self.current_track, self.held_step_pad, note, velocity)
@@ -172,12 +184,16 @@ class Push2Adapter(UIAdapter):
                 print(f"Octave down: {self.octave}")
                 
             case push2_python.constants.BUTTON_DELETE:
-                if (self.held_step_pad is not None and 
-                    self.tracks[self.current_track] is not None and 
-                    self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)):
+                if (self.held_step_pad is not None and
+                    self.tracks[self.current_track] is not None):
                     
-                    self.sequencer.remove_note(self.current_track, self.held_step_pad)
-                    print(f"Cleared track {self.current_track} step {self.held_step_pad}")
+                    # Only allow deletion if step is within pattern length
+                    active_pattern_length = self.sequencer.get_pattern_length(self.current_track)
+                    if self.held_step_pad < active_pattern_length:
+                        notes = self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)
+                        if notes:
+                            self.sequencer.remove_note(self.current_track, self.held_step_pad)
+                            print(f"Cleared track {self.current_track} step {self.held_step_pad}")
                     
             case push2_python.constants.BUTTON_UPPER_ROW_8:
                 # OK Button - handle confirmations based on mode
@@ -215,7 +231,7 @@ class Push2Adapter(UIAdapter):
                 self.push.buttons.set_button_color(button_constant, color)
     
     def _update_pad_colors(self):
-        """Update pad colors based on current sequencer state"""
+        """Update pad colors based on current sequencer state (polyrhythmic support)"""
         # Small delay to prevent rapid successive calls from causing ghost pads
         time.sleep(0.001)
         
@@ -224,12 +240,19 @@ class Push2Adapter(UIAdapter):
             for col in range(8):
                 self.push.pads.set_pad_color((row, col), 'black')
         
-        # Set step pad colors
-        for step in range(16):
+        # Get current pattern length for active track
+        active_pattern_length = self.sequencer.get_pattern_length(self.current_track)
+        
+        # Only show active steps up to pattern length
+        for step in range(min(16, active_pattern_length)):
             row = 6 + (step // 8)
             col = step % 8
             
-            if step == self.sequencer.current_step and self.sequencer.is_playing:
+            # Check if this step is current for the active track
+            current_track_step = self.sequencer.get_current_step(self.current_track)
+            is_current_step = (current_track_step == step and self.sequencer.is_playing)
+            
+            if is_current_step:
                 color = 'green'
             elif (self.tracks[self.current_track] is not None and
                   self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(step)):
@@ -238,6 +261,12 @@ class Push2Adapter(UIAdapter):
                 color = 'white'
                 
             self.push.pads.set_pad_color((row, col), color)
+        
+        # Show inactive steps in gray (beyond current pattern length but within 16-step grid)
+        for step in range(active_pattern_length, 16):
+            row = 6 + (step // 8)
+            col = step % 8
+            self.push.pads.set_pad_color((row, col), 'dark_gray')
         
         # Update note input pads
         for note_pad in range(12):
@@ -266,11 +295,22 @@ class Push2Adapter(UIAdapter):
     def _update_delete_button(self):
         """Update delete button color"""
         try:
-            if (self.held_step_pad is not None and 
-                self.tracks[self.current_track] is not None and
-                self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)):
-                if hasattr(push2_python.constants, 'BUTTON_DELETE'):
-                    self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, 'white')
+            if (self.held_step_pad is not None and
+                self.tracks[self.current_track] is not None):
+                
+                # Only show delete as available if step is within pattern length
+                active_pattern_length = self.sequencer.get_pattern_length(self.current_track)
+                if self.held_step_pad < active_pattern_length:
+                    notes = self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)
+                    if notes:
+                        if hasattr(push2_python.constants, 'BUTTON_DELETE'):
+                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, 'white')
+                    else:
+                        if hasattr(push2_python.constants, 'BUTTON_DELETE'):
+                            self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, DEFAULT_BUTTON_STATE)
+                else:
+                    if hasattr(push2_python.constants, 'BUTTON_DELETE'):
+                        self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, DEFAULT_BUTTON_STATE)
             else:
                 if hasattr(push2_python.constants, 'BUTTON_DELETE'):
                     self.push.buttons.set_button_color(push2_python.constants.BUTTON_DELETE, DEFAULT_BUTTON_STATE)

@@ -1,6 +1,14 @@
-import mido
 from typing import Optional
 import platform
+
+try:
+    import mido
+    MIDI_AVAILABLE = True
+except (ImportError, OSError) as e:
+    # ALSA not available or mido import failed
+    print(f"MIDI not available, using mock interface: {e}")
+    import mock_midi as mido
+    MIDI_AVAILABLE = False
 
 class MidiOutput:
     def __init__(self):
@@ -10,11 +18,19 @@ class MidiOutput:
         self.sequencer = None  # Will be set by sequencer
         self.clock_sources = []  # Available clock sources
         self.selected_clock_source = None
+        self.using_mock_midi = not MIDI_AVAILABLE
         self._scan_ports()
         self._setup_midi_input()
         
+        if self.using_mock_midi:
+            print("Using mock MIDI interface (no ALSA/real MIDI available)")
+        
     def _scan_ports(self):
-        self.available_ports = mido.get_output_names()
+        try:
+            self.available_ports = mido.get_output_names()
+        except Exception as e:
+            print(f"Error scanning MIDI ports: {e}")
+            self.available_ports = []
         
     def _setup_midi_input(self):
         """Setup MIDI input for clock sync"""
@@ -28,6 +44,8 @@ class MidiOutput:
             self.selected_clock_source = 'Internal'
         except Exception as e:
             print(f"MIDI input setup failed: {e}")
+            self.clock_sources = ['Internal']
+            self.selected_clock_source = 'Internal'
             
     def select_clock_source(self, source_name):
         """Select and connect to a clock source"""

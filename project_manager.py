@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from core.sequencer_event_bus import SequencerEvent, EventType
 
 class ProjectManager:
     def __init__(self, sequencer_app):
@@ -37,7 +38,7 @@ class ProjectManager:
                 track_data["device"] = self.app.device_manager.to_dict(device)
             
             # Save notes for this track
-            pattern = self.app.sequencer.tracks[i]
+            pattern = self.app.sequencer._internal_sequencer.tracks[i]
             for note in pattern.notes:
                 track_data["notes"].append({
                     "step": note.step,
@@ -88,7 +89,7 @@ class ProjectManager:
                 
                 # Load notes
                 for note_data in track_data["notes"]:
-                    self.app.sequencer.tracks[track_idx].add_note(
+                    self.app.sequencer._internal_sequencer.tracks[track_idx].add_note(
                         note_data["step"],
                         note_data["note"],
                         note_data["velocity"]
@@ -100,8 +101,10 @@ class ProjectManager:
             # Update UI
             self.app._update_track_buttons()
             self.app._init_cc_values_for_track()
-            self.app.pad_states = {}
-            self.app._update_pad_colors()
+            self.app.event_bus.publish(SequencerEvent(
+                type=EventType.PATTERN_MODIFIED,
+                data={'action': 'project_loaded'}
+            ))
             
             self.current_project_file = filename
             print(f"Project loaded: {filepath}")
@@ -119,7 +122,7 @@ class ProjectManager:
         # Clear all tracks
         for i in range(8):
             self.app.tracks[i] = None
-            self.app.sequencer.tracks[i].notes.clear()
+            self.app.sequencer._internal_sequencer.tracks[i].notes.clear()
             
         # Reset to defaults
         self.app.current_track = 0

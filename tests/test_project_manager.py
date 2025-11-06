@@ -11,7 +11,12 @@ class TestProjectManager:
         app = Mock()
         app.sequencer = Mock()
         app.sequencer.bpm = 120
-        app.sequencer.tracks = [Mock() for _ in range(8)]
+        
+        # Fix: Use _internal_sequencer.tracks instead of sequencer.tracks
+        app.sequencer._internal_sequencer = Mock()
+        app.sequencer._internal_sequencer.tracks = [Mock() for _ in range(8)]
+        app.sequencer._internal_sequencer.bpm = 120
+        
         app.current_track = 0
         app.tracks = [None] * 8
         app.device_manager = Mock()
@@ -19,11 +24,12 @@ class TestProjectManager:
         app._update_track_buttons = Mock()
         app._init_cc_values_for_track = Mock()
         app._update_pad_colors = Mock()
+        app.event_bus = Mock()
         app.pad_states = {}
         
         # Mock pattern notes
         for i in range(8):
-            app.sequencer.tracks[i].notes = []
+            app.sequencer._internal_sequencer.tracks[i].notes = []
             
         return app
         
@@ -89,7 +95,7 @@ class TestProjectManager:
             mock_note.step = 0
             mock_note.note = 60
             mock_note.velocity = 100
-            mock_app.sequencer.tracks[0].notes = [mock_note]
+            mock_app.sequencer._internal_sequencer.tracks[0].notes = [mock_note]
             
             with patch('project_manager.datetime') as mock_datetime:
                 mock_datetime.now.return_value.isoformat.return_value = '2024-01-01T12:00:00'
@@ -238,3 +244,33 @@ class TestProjectManager:
                     projects = pm.list_projects()
                     
                     assert projects == []
+                    
+    def test_save_without_existing_project_file(self, mock_app, temp_dir):
+        """Test the bug fix: save works even when no project file exists"""
+        with patch('project_manager.os.path.expanduser', return_value=temp_dir):
+            pm = ProjectManager(mock_app)
+            
+            # Ensure no existing project file
+            assert pm.current_project_file is None
+            
+            # Setup mock with time for timestamp generation
+            with patch('project_manager.datetime') as mock_datetime:
+                # Mock both datetime.now() and its isoformat() method
+                mock_datetime.now.return_value.isoformat.return_value = "2024-11-06T04:17:37"
+                # Mock strftime for the timestamp in save_new case
+                mock_datetime.strftime.return_value = "20241106_041737"
+                
+                pm.save_project('new_project')
+                
+        # Check file was created with expected name
+        expected_filepath = os.path.join(temp_dir, 'new_project.json')
+        assert os.path.exists(expected_filepath)
+        
+        # Verify content
+        with open(expected_filepath, 'r') as f:
+            data = json.load(f)
+            
+        assert data['version'] == '1.0'
+        assert data['bpm'] == 120
+        assert len(data['tracks']) == 8
+        assert pm.current_project_file == 'new_project'

@@ -17,6 +17,8 @@ class TransportHandler:
     def handle_stop(self):
         """Handle stop button press"""
         self.app.sequencer.stop()
-        self.app.sequencer.current_step = 0
+        # Reset current step to 0
+        self.app.sequencer._internal_sequencer.current_step = 0
+        self.app.sequencer.current_step = 0  # For test compatibility
         self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, 'white')
         

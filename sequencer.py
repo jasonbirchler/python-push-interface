@@ -76,11 +76,10 @@ class Sequencer:
 
         for track_idx, device in self._track_devices.items():
             if hasattr(device, 'send_transport') and device.send_transport:
-                port_name = getattr(self, '_track_ports', {}).get(track_idx)
                 if message_type == 'start':
-                    self.midi_output.send_start(port_name)
+                    self.midi_output.send_start()
                 elif message_type == 'stop':
-                    self.midi_output.send_stop(port_name)
+                    self.midi_output.send_stop()
                     
     def handle_midi_clock(self):
         """Handle incoming MIDI clock pulse"""
@@ -213,9 +212,16 @@ class Sequencer:
 
         print(f"Step {self.current_step}: {total_notes} total notes across all tracks")
         
+        # Store previous step before advancing
+        previous_step = self.current_step
+        
         # Advance to next step
         self.current_step = (self.current_step + 1) % 16
         
-        # Update pad colors
+        # Call pad update callback if available
         if hasattr(self, '_update_pad_colors_callback') and self._update_pad_colors_callback:
             self._update_pad_colors_callback()
+        
+        # Only publish step change event if step actually changed
+        if hasattr(self, '_publish_step_event') and self._publish_step_event and previous_step != self.current_step:
+            self._publish_step_event()

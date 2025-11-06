@@ -304,8 +304,13 @@ class Push2Adapter(UIAdapter):
             case 'save':
                 if self.project_manager.current_project_file:
                     self.project_manager.save_project(self.project_manager.current_project_file)
-                    self.session_mode = False
-                    self.session_action = None
+                else:
+                    # No existing project file, save as new
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    project_name = f"project_{timestamp}"
+                    self.project_manager.save_project(project_name)
+                self.session_mode = False
+                self.session_action = None
             case 'save_new':
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 project_name = f"project_{timestamp}"

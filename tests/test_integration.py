@@ -5,6 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from unittest.mock import Mock, patch
 from core.sequencer_engine import SequencerEngine
 from adapters.push2_adapter import Push2Adapter
 from core.sequencer_event_bus import EventType
@@ -18,7 +19,11 @@ def test_integration():
     # Create components
     midi_output = MidiOutput()
     sequencer = SequencerEngine(midi_output)
-    adapter = Push2Adapter(sequencer, use_simulator=True)
+    
+    # Mock Push2Adapter to avoid hardware dependencies in CI
+    with patch('adapters.push2_adapter.push2_python') as mock_push2:
+        mock_push2.Push2.return_value = Mock()
+        adapter = Push2Adapter(sequencer, use_simulator=True)
     
     # Test 1: Components created successfully
     assert sequencer is not None
@@ -69,7 +74,6 @@ def test_integration():
     print("✅ Test 6: Push2 components initialized")
     
     print("🎉 All integration tests passed!")
-    return True
 
 def test_feature_parity():
     """Test that key features from original are preserved"""
@@ -77,7 +81,11 @@ def test_feature_parity():
     
     midi_output = MidiOutput()
     sequencer = SequencerEngine(midi_output)
-    adapter = Push2Adapter(sequencer, use_simulator=True)
+    
+    # Mock Push2Adapter to avoid hardware dependencies in CI
+    with patch('adapters.push2_adapter.push2_python') as mock_push2:
+        mock_push2.Push2.return_value = Mock()
+        adapter = Push2Adapter(sequencer, use_simulator=True)
     
     # Test multi-track support
     assert len(adapter.tracks) == 8
@@ -104,7 +112,6 @@ def test_feature_parity():
     print("✅ Octave control")
     
     print("🎉 Feature parity tests passed!")
-    return True
 
 if __name__ == '__main__':
     try:

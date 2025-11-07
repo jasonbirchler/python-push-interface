@@ -10,7 +10,7 @@ class Note:
     velocity: int
 
 class Pattern:
-    def __init__(self, length: int = 16):
+    def __init__(self, length: int = 32):  # Changed default to 32 steps
         self.length = max(1, min(64, length))  # Clamp to 1-64
         self.notes: List[Note] = []
         self.current_step = 0
@@ -28,6 +28,14 @@ class Pattern:
 
     def get_notes_at_step(self, step: int) -> List[Note]:
         return [n for n in self.notes if n.step == step]
+    
+    def get_absolute_notes_at_step(self, absolute_step: int, range_start: int = 0) -> List[Note]:
+        """Get notes at absolute step position (considering range)"""
+        # Convert absolute step to pattern-relative step
+        relative_step = absolute_step - range_start
+        if 0 <= relative_step < self.length:
+            return [n for n in self.notes if n.step == relative_step]
+        return []
 
     def clear_step(self, step: int):
         self.notes = [n for n in self.notes if n.step != step]
@@ -82,20 +90,69 @@ class Sequencer:
             self._track_devices = {}
         self._track_devices[track] = device
 
-    def set_pattern_length(self, track: int, length: int):
-        """Set pattern length for specific track (1-64)"""
+    def set_pattern_length(self, track: int, length: int, range_start: int = 0):
+        """Set pattern length for specific track (1-64) with optional range positioning"""
         if 0 <= track < 8:
             old_length = self.tracks[track].length
-            self.tracks[track].length = max(1, min(64, length))
+            old_range_start = getattr(self, '_range_starts', {})[track] if track in getattr(self, '_range_starts', {}) else 0
+            new_length = max(1, min(64, length))
             
-            # Clear notes beyond new length
-            if old_length > self.tracks[track].length:
-                self.tracks[track].notes = [
-                    note for note in self.tracks[track].notes
-                    if note.step < self.tracks[track].length
-                ]
+            # Initialize preserved notes storage and range tracking if not exists
+            if not hasattr(self, '_preserved_notes'):
+                self._preserved_notes = {}
+            if track not in self._preserved_notes:
+                self._preserved_notes[track] = {}
+            if not hasattr(self, '_range_starts'):
+                self._range_starts = {}
+                
+            print(f"Track {track}: Changing from range {old_range_start}-{old_range_start+old_length-1} to {range_start}-{range_start+new_length-1}")
             
-            print(f"Track {track} pattern length: {old_length} -> {self.tracks[track].length}")
+            if new_length != old_length or range_start != old_range_start:
+                # RANGE CHANGE: Handle note reindexing
+                preserved = {}
+                active_notes = []
+                
+                # Process all current notes
+                for note in self.tracks[track].notes:
+                    if old_range_start <= note.step < old_range_start + old_length:
+                        # Note was in the old range - check if it fits in new range
+                        if range_start <= note.step < range_start + new_length:
+                            # Note fits in new range - reindex it
+                            new_step = note.step - range_start
+                            active_notes.append(Note(new_step, note.note, note.velocity))
+                        else:
+                            # Note is outside new range - preserve it
+                            preserved[note.step] = note
+                    else:
+                        # Note was outside old range - preserve it
+                        preserved[note.step] = note
+                
+                # Restore any preserved notes that now fit in the new range
+                restored_count = 0
+                preserved_to_restore = []
+                for preserved_step, preserved_note in list(self._preserved_notes[track].items()):
+                    if range_start <= preserved_step < range_start + new_length:
+                        # This preserved note now fits in the new range - reindex it
+                        preserved_to_restore.append((preserved_step, preserved_note))
+                        del self._preserved_notes[track][preserved_step]
+                        restored_count += 1
+                
+                # Add restored notes to active pattern
+                for preserved_step, preserved_note in preserved_to_restore:
+                    new_step = preserved_step - range_start
+                    active_notes.append(Note(new_step, preserved_note.note, preserved_note.velocity))
+                
+                # Update pattern with new notes and update preserved notes
+                self.tracks[track].notes = active_notes
+                self._preserved_notes[track].update(preserved)
+                self._range_starts[track] = range_start
+                self.tracks[track].length = new_length
+                
+                print(f"Track {track}: Range change complete - {len(active_notes)} active, {len(preserved)} preserved, {restored_count} restored")
+            else:
+                # Same range - no change needed
+                self._range_starts[track] = range_start
+                self.tracks[track].length = new_length
 
     def get_pattern_length(self, track: int) -> int:
         """Get pattern length for specific track"""
@@ -237,13 +294,21 @@ class Sequencer:
                 
             # Use this track's current step position
             current_track_step = self.current_steps[track_idx]
-            notes_at_step = track_pattern.get_notes_at_step(current_track_step)
+            
+            # Get range start for this track
+            range_start = getattr(self, '_range_starts', {})[track_idx] if track_idx in getattr(self, '_range_starts', {}) else 0
+            
+            # Calculate absolute step position in the original 32-step space
+            absolute_step = range_start + current_track_step
+            
+            # Get notes at this absolute position
+            notes_at_step = track_pattern.get_absolute_notes_at_step(absolute_step, range_start)
             total_notes += len(notes_at_step)
 
             for note in notes_at_step:
                 channel = self.track_channels[track_idx]
                 port_name = getattr(self, '_track_ports', {}).get(track_idx)
-                print(f"Track {track_idx} Step {current_track_step}: Playing note {note.note} on channel {channel} port {port_name}")
+                print(f"Track {track_idx} Step {current_track_step} (abs {absolute_step}): Playing note {note.note} on channel {channel} port {port_name}")
                 self.midi_output.send_note_on(channel, note.note, note.velocity, port_name)
                 self._active_notes.add((channel, note.note, port_name))
                 self.current_step_notes.add((channel, note.note, port_name))

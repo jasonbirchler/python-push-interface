@@ -79,14 +79,17 @@ class TestSequencer:
         
         assert sequencer.current_step == 6
         
-    def test_trigger_step_wraps_at_16(self, mock_midi_output):
+    def test_trigger_step_wraps_at_default_length(self, mock_midi_output):
         sequencer = Sequencer(mock_midi_output)
-        sequencer.current_step = 15
+        # Set first track to step 31 (last step of 32-step pattern)
+        sequencer.current_steps = [31] + [0] * 7
         sequencer.current_step_notes = set()  # Initialize required attribute
         
         sequencer._trigger_step()
         
+        # Should wrap to 0 (default pattern length is now 32)
         assert sequencer.current_step == 0
+        assert sequencer.current_steps[0] == 0
         
     @patch('time.time')
     def test_trigger_step_plays_notes(self, mock_time, mock_midi_output):

@@ -17,6 +17,9 @@ class SequencerEngine:
         # Inject event publishing into internal sequencer
         self._internal_sequencer._event_bus = self.event_bus
         self._internal_sequencer._publish_step_event = self._publish_step_event
+        # Initialize preserved notes and range tracking storage
+        self._internal_sequencer._preserved_notes = {}
+        self._internal_sequencer._range_starts = {}
         
     def _publish_step_event(self):
         """Publish step change event"""
@@ -87,15 +90,16 @@ class SequencerEngine:
         self._internal_sequencer.set_track_device(track, device)
     
     # Polyrhythmic functionality
-    def set_pattern_length(self, track: int, length: int) -> None:
-        """Set pattern length for specific track (1-64)"""
+    def set_pattern_length(self, track: int, length: int, range_start: int = 0) -> None:
+        """Set pattern length for specific track (1-64) with optional range positioning"""
         old_length = self.get_pattern_length(track)
-        self._internal_sequencer.set_pattern_length(track, length)
+        old_range_start = getattr(self._internal_sequencer, '_range_starts', {})[track] if track in getattr(self._internal_sequencer, '_range_starts', {}) else 0
+        self._internal_sequencer.set_pattern_length(track, length, range_start)
         
-        if old_length != length:
+        if old_length != length or old_range_start != range_start:
             self.event_bus.publish(SequencerEvent(
                 type=EventType.PATTERN_LENGTH_CHANGED,
-                data={'track': track, 'length': length, 'old_length': old_length}
+                data={'track': track, 'length': length, 'range_start': range_start, 'old_length': old_length, 'old_range_start': old_range_start}
             ))
 
     def get_pattern_length(self, track: int) -> int:

@@ -112,34 +112,41 @@ class Sequencer:
                 preserved = {}
                 active_notes = []
                 
+                # When preserving notes, store them by their ABSOLUTE positions
+                # not their current step positions to enable proper restoration
+                
                 # Process all current notes
                 for note in self.tracks[track].notes:
-                    if old_range_start <= note.step < old_range_start + old_length:
+                    # Calculate absolute position of this note
+                    absolute_step = old_range_start + note.step
+                    
+                    if old_range_start <= absolute_step < old_range_start + old_length:
                         # Note was in the old range - check if it fits in new range
-                        if range_start <= note.step < range_start + new_length:
+                        if range_start <= absolute_step < range_start + new_length:
                             # Note fits in new range - reindex it
-                            new_step = note.step - range_start
+                            new_step = absolute_step - range_start
                             active_notes.append(Note(new_step, note.note, note.velocity))
                         else:
-                            # Note is outside new range - preserve it
-                            preserved[note.step] = note
+                            # Note is outside new range - preserve it by ABSOLUTE position
+                            preserved[absolute_step] = Note(note.step, note.note, note.velocity)
                     else:
-                        # Note was outside old range - preserve it
-                        preserved[note.step] = note
+                        # Note was outside old range - preserve it by ABSOLUTE position
+                        preserved[absolute_step] = Note(note.step, note.note, note.velocity)
                 
                 # Restore any preserved notes that now fit in the new range
                 restored_count = 0
                 preserved_to_restore = []
-                for preserved_step, preserved_note in list(self._preserved_notes[track].items()):
-                    if range_start <= preserved_step < range_start + new_length:
+                for preserved_absolute_step, preserved_note in list(self._preserved_notes[track].items()):
+                    if range_start <= preserved_absolute_step < range_start + new_length:
                         # This preserved note now fits in the new range - reindex it
-                        preserved_to_restore.append((preserved_step, preserved_note))
-                        del self._preserved_notes[track][preserved_step]
+                        preserved_to_restore.append((preserved_absolute_step, preserved_note))
+                        del self._preserved_notes[track][preserved_absolute_step]
                         restored_count += 1
                 
                 # Add restored notes to active pattern
-                for preserved_step, preserved_note in preserved_to_restore:
-                    new_step = preserved_step - range_start
+                for preserved_absolute_step, preserved_note in preserved_to_restore:
+                    new_step = preserved_absolute_step - range_start
+                    # preserved_note.step is the original step position in its original pattern
                     active_notes.append(Note(new_step, preserved_note.note, preserved_note.velocity))
                 
                 # Update pattern with new notes and update preserved notes

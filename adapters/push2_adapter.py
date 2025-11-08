@@ -49,6 +49,7 @@ class Push2Adapter(UIAdapter):
         self.keyboard_octave_offset = 0  # Octave offset for keyboard
         self.keyboard_notes_c = set()  # C note positions on keyboard for highlighting
         self._init_keyboard_c_notes()
+        self._init_piano_keyboard_layout()  # Initialize piano keyboard layout
         
         # Clock source selection
         self.clock_selection_mode = False
@@ -109,16 +110,57 @@ class Push2Adapter(UIAdapter):
     def _init_keyboard_c_notes(self):
         """Initialize C note positions for keyboard highlighting"""
         # C notes are at positions where (note % 12) == 0
-        # Mapping keyboard rows/cols to notes: note = base + (7-row)*8 + col
-        # So C notes occur when: (base + (7-row)*8 + col) % 12 == 0
-        base_note = 48  # C3 base note
+        # For the new piano layout, we'll highlight C notes differently
         self.keyboard_notes_c = set()
         
-        for row in range(4, 8):  # Keyboard rows
+    def _init_piano_keyboard_layout(self):
+        """Initialize piano keyboard layout mapping"""
+        # Define which pads trigger notes
+        # Rows 6 and 8: White keys (C-D-E-F-G-A-B-C)
+        # Rows 5 and 7: Black keys (C#-D#-F#-G#-A#) with gaps at positions 0, 3, 7
+        self.white_key_positions = set()
+        self.black_key_positions = set()
+        self.disabled_key_positions = set()
+        
+        # White keys: rows 5 and 7, all 8 columns
+        for row in [5, 7]:  # Rows 6 and 8 in human terms
             for col in range(8):
-                note = base_note + (7 - row) * 8 + col
-                if note % 12 == 0:  # C note
-                    self.keyboard_notes_c.add((row, col))
+                self.white_key_positions.add((row, col))
+        
+        # Black keys: rows 4 and 6, columns 0-7 but with gaps
+        for row in [4, 6]:  # Rows 5 and 7 in human terms
+            for col in range(8):
+                # Gaps at 1st, 4th, 8th pads (0-indexed: positions 0, 3, 7)
+                if col in [0, 3, 7]:
+                    self.disabled_key_positions.add((row, col))
+                else:
+                    self.black_key_positions.add((row, col))
+        
+        # Map pad positions to note values for piano layout
+        self.piano_note_mapping = {}
+        
+        # Define note mappings for each row
+        # Row 7: C3 to C4 (white keys, bottom row)
+        white_notes_row7 = [48, 50, 52, 53, 55, 57, 59, 60]  # C3-D3-E3-F3-G3-A3-B3-C4
+        for col, note in enumerate(white_notes_row7):
+            self.piano_note_mapping[(7, col)] = note
+            
+        # Row 5: C4 to C5 (white keys, middle row)
+        white_notes_row5 = [60, 62, 64, 65, 67, 69, 71, 72]  # C4-D4-E4-F4-G4-A4-B4-C5
+        for col, note in enumerate(white_notes_row5):
+            self.piano_note_mapping[(5, col)] = note
+            
+        # Row 6: Black keys one octave lower (above row 7 white keys)
+        black_notes_row6 = [49, 51, 54, 56, 58]  # C#3-D#3-F#3-G#3-A#3
+        black_cols_row6 = [1, 2, 4, 5, 6]  # Skip positions 0, 3, 7
+        for col, note in zip(black_cols_row6, black_notes_row6):
+            self.piano_note_mapping[(6, col)] = note
+            
+        # Row 4: Black keys middle octave (above row 5 white keys)
+        black_notes_row4 = [61, 63, 66, 68, 70]  # C#4-D#4-F#4-G#4-A#4
+        black_cols_row4 = [1, 2, 4, 5, 6]  # Skip positions 0, 3, 7
+        for col, note in zip(black_cols_row4, black_notes_row4):
+            self.piano_note_mapping[(4, col)] = note
     
     def _setup_range_aware_note_system(self):
         """Setup range-aware note management that works at adapter level"""
@@ -197,14 +239,27 @@ class Push2Adapter(UIAdapter):
                         self._update_pad_colors()
                         print(f"Selected step {step} for note input")
             
-            # Bottom 4 rows: MIDI keyboard
+            # Bottom 4 rows: MIDI keyboard (piano layout)
             else:
+                # Check if this is a valid key position
+                pad_pos = (row, col)
+                
+                # Skip disabled pads in black key rows
+                if pad_pos in self.disabled_key_positions:
+                    return  # Do nothing for disabled pads
+                    
                 if self.tracks[self.current_track] is not None and self.held_step_pad is not None:
-                    # Calculate note based on pad position
-                    # Half-step intervals, higher pitch to right and down
-                    base_note = 48 + self.keyboard_octave_offset * 12  # C3 base
-                    note = base_note + (7 - row) * 8 + col  # 8 notes per row, reverse rows for higher pitch down
-                    note = max(0, min(127, note))  # Clamp to MIDI range
+                    # Calculate note based on piano layout mapping
+                    if pad_pos in self.piano_note_mapping:
+                        note = self.piano_note_mapping[pad_pos]
+                        # Apply octave offset
+                        note += self.keyboard_octave_offset * 12
+                        note = max(0, min(127, note))  # Clamp to MIDI range
+                    else:
+                        # Fallback for any unmapped positions
+                        base_note = 48 + self.keyboard_octave_offset * 12  # C3 base
+                        note = base_note + (7 - row) * 8 + col
+                        note = max(0, min(127, note))  # Clamp to MIDI range
                     
                     # Get track channel from sequencer
                     channel = self.sequencer._internal_sequencer.track_channels[self.current_track]
@@ -241,8 +296,10 @@ class Push2Adapter(UIAdapter):
             
             # Bottom 4 rows: MIDI keyboard
             else:
-                if pad_id in self.held_keyboard_pads:
-                    self.held_keyboard_pads.discard(pad_id)
+                # Check if this is a valid key position (not disabled)
+                if pad_id not in self.disabled_key_positions:
+                    if pad_id in self.held_keyboard_pads:
+                        self.held_keyboard_pads.discard(pad_id)
             
         @push2_python.on_button_released()
         def on_button_released(push, button_name):
@@ -273,7 +330,7 @@ class Push2Adapter(UIAdapter):
                     self.tracks[self.current_track] is not None):
                     
                     # Check if step is within active range
-                    if self.selected_range_start <= self.held_step_pad <= self.selected_range_end:
+                    if self._is_step_in_active_range(self.held_step_pad):
                         notes = self.sequencer._internal_sequencer.tracks[self.current_track].get_notes_at_step(self.held_step_pad)
                         if notes:
                             self.sequencer.remove_note(self.current_track, self.held_step_pad)
@@ -310,7 +367,7 @@ class Push2Adapter(UIAdapter):
         self.selected_range_start = new_range_start
         self.selected_range_end = new_range_end
         
-        # CRITICAL: Update sequencer pattern length AND range start to match UI range
+        # Update sequencer pattern length AND range start to match UI range
         current_pattern_length = self.sequencer.get_pattern_length(self.current_track)
         current_range_start = getattr(self.sequencer._internal_sequencer, '_range_starts', {})[self.current_track] if self.current_track in getattr(self.sequencer._internal_sequencer, '_range_starts', {}) else 0
         
@@ -399,21 +456,24 @@ class Push2Adapter(UIAdapter):
                 
                 self.push.pads.set_pad_color(pad_pos, color)
         
-        # Update bottom 4 rows: MIDI keyboard
-        # All keyboard pads should be lit - C notes full yellow, others dim yellow
+        # Update bottom 4 rows: MIDI keyboard (piano layout)
         for row in range(4, 8):
             for col in range(8):
                 pad_pos = (row, col)
                 
-                # Keyboard pad colors
-                if pad_pos in self.held_keyboard_pads:
+                # Keyboard pad colors based on piano layout
+                if pad_pos in self.disabled_key_positions:
+                    color = 'dark_gray'  # Disabled pads
+                elif pad_pos in self.held_keyboard_pads:
                     color = 'red'  # Currently playing
-                elif pad_pos in self.keyboard_notes_c:
-                    color = 'yellow'  # C notes (full yellow)
+                elif pad_pos in self.white_key_positions:
+                    color = 'white'  # White keys
+                elif pad_pos in self.black_key_positions:
+                    color = 'turquoise'  # Black keys
                 elif self.held_step_pad is not None and self.tracks[self.current_track] is not None:
-                    color = 'light_gray'  # Ready for note input
+                    color = 'light_gray'  # Ready for note input (fallback)
                 else:
-                    color = 'light_gray'  # Normal keyboard
+                    color = 'light_gray'  # Normal keyboard (fallback)
                 
                 self.push.pads.set_pad_color(pad_pos, color)
     
@@ -442,7 +502,13 @@ class Push2Adapter(UIAdapter):
         # So we just need to check if there's a note at the given step in the pattern
         pattern = self.sequencer._internal_sequencer.tracks[self.current_track]
         notes = pattern.get_notes_at_step(step)
-        return len(notes) > 0
+        
+        # Handle both real notes and mock objects
+        try:
+            return len(notes) > 0
+        except TypeError:
+            # If notes is a mock object, check if it has notes
+            return hasattr(notes, '__len__') and len(notes) > 0
     
     def _update_octave_buttons(self):
         """Update octave button colors"""
@@ -533,10 +599,11 @@ class Push2Adapter(UIAdapter):
         print("- Track buttons (1-8): Select active track")
         print("- Master encoder: Browse devices (when adding track)")
         print("- Select button: Confirm device selection")
-        print("- Bottom 2 rows: Step sequencer (16 steps)")
-        print("- Top row (first 12): Note input (C-B)")
+        print("- Bottom 4 rows: Piano-style keyboard (2 octaves)")
+        print("- Rows 6,8: White keys (C-D-E-F-G-A-B-C)")
+        print("- Rows 5,7: Black keys (C#-D#-F#-G#-A#) with gaps")
         print("- Play button: Start/stop all tracks")
-        print("- Octave up/down: Change octave")
+        print("- Octave up/down: Change keyboard octave")
         print("- Track encoders: Adjust CCs for current track")
 
         # Initialize button and pad colors

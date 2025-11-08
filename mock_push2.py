@@ -69,6 +69,10 @@ class MockConstants:
     # Animation constants
     ANIMATION_PULSING_QUARTER = 'ANIMATION_PULSING_QUARTER'
     
+    # Display constants
+    DISPLAY_LINE_PIXELS = 960
+    DISPLAY_N_LINES = 160
+    
     # Frame format constants
     FRAME_FORMAT_RGB565 = 'FRAME_FORMAT_RGB565'
 

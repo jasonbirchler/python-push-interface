@@ -53,13 +53,18 @@ def test_integration():
     events_received.clear()
     adapter.event_bus.subscribe(EventType.PLAY_STATE_CHANGED, capture_event)
     
-    sequencer.play()
-    assert sequencer.is_playing == True
-    time.sleep(0.1)  # Allow event to propagate
-    
-    sequencer.stop()
-    assert sequencer.is_playing == False
-    print("✅ Test 4: Play/stop with events")
+    try:
+        sequencer.play()
+        assert sequencer.is_playing == True
+        time.sleep(0.1)  # Allow event to propagate
+        
+        sequencer.stop()
+        assert sequencer.is_playing == False
+        print("✅ Test 4: Play/stop with events")
+    finally:
+        # Ensure sequencer is stopped to prevent thread leaks
+        if sequencer.is_playing:
+            sequencer.stop()
     
     # Test 5: UI state management
     assert adapter.current_track == 0

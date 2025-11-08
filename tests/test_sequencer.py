@@ -62,11 +62,16 @@ class TestSequencer:
     def test_play_stop(self, mock_midi_output):
         sequencer = Sequencer(mock_midi_output)
         
-        sequencer.play()
-        assert sequencer.is_playing
-        
-        sequencer.stop()
-        assert not sequencer.is_playing
+        try:
+            sequencer.play()
+            assert sequencer.is_playing
+            
+            sequencer.stop()
+            assert not sequencer.is_playing
+        finally:
+            # Ensure sequencer is stopped to prevent thread leaks
+            if sequencer.is_playing:
+                sequencer.stop()
         
     @patch('time.time')
     def test_trigger_step_advances(self, mock_time, mock_midi_output):

@@ -44,14 +44,19 @@ def main():
     
     # Start playback
     print(f"\n▶️ Starting playback for 5 seconds...")
-    sequencer.play()
-    
-    # Let it play for a bit
-    time.sleep(5)
-    
-    # Stop playback
-    print(f"\n⏹️ Stopping playback...")
-    sequencer.stop()
+    try:
+        sequencer.play()
+        
+        # Let it play for a bit
+        time.sleep(5)
+        
+        # Stop playback
+        print(f"\n⏹️ Stopping playback...")
+        sequencer.stop()
+    finally:
+        # Ensure sequencer is stopped to prevent thread leaks
+        if sequencer.is_playing:
+            sequencer.stop()
     
     print(f"\n✅ Standalone sequencer test completed successfully!")
     print(f"   - Sequencer created without Push2")

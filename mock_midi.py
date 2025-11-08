@@ -71,3 +71,41 @@ def open_input(name):
 def Message(msg_type, **kwargs):
     """Create mock MIDI message"""
     return MockMidiMessage(msg_type, **kwargs)
+
+# Mock ports module
+class MockPorts:
+    """Mock ports module"""
+    @staticmethod
+    def get_output_names():
+        return get_output_names()
+    
+    @staticmethod
+    def get_input_names():
+        return get_input_names()
+
+ports = MockPorts()
+
+# Mock base classes for mido ports
+class BaseInput:
+    """Mock base input class"""
+    def receive(self, block=True):
+        """Mock receive method"""
+        return None
+    
+    def poll(self):
+        """Mock poll method"""
+        return None
+    
+    def iter_pending(self):
+        """Mock iter_pending method"""
+        return []
+
+class BaseOutput:
+    """Mock base output class"""
+    def send(self, message):
+        """Mock send method"""
+        pass
+
+# Add base classes to ports module
+ports.BaseInput = BaseInput
+ports.BaseOutput = BaseOutput

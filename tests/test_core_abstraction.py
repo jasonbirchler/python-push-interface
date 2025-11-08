@@ -59,15 +59,20 @@ def test_play_stop():
     
     engine.event_bus.subscribe(EventType.PLAY_STATE_CHANGED, on_event)
     
-    engine.play()
-    assert engine.is_playing == True
-    assert len(events_received) == 1
-    assert events_received[0].data['is_playing'] == True
-    
-    engine.stop()
-    assert engine.is_playing == False
-    assert len(events_received) == 2
-    assert events_received[1].data['is_playing'] == False
+    try:
+        engine.play()
+        assert engine.is_playing == True
+        assert len(events_received) == 1
+        assert events_received[0].data['is_playing'] == True
+        
+        engine.stop()
+        assert engine.is_playing == False
+        assert len(events_received) == 2
+        assert events_received[1].data['is_playing'] == False
+    finally:
+        # Ensure sequencer is stopped to prevent thread leaks
+        if engine.is_playing:
+            engine.stop()
 
 if __name__ == '__main__':
     test_sequencer_engine_creation()

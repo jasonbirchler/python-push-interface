@@ -59,3 +59,36 @@ def mock_push():
     mock.pads = Mock()
     mock.display = Mock()
     return mock
+
+@pytest.fixture(autouse=True)
+def cleanup_sequencers():
+    """Automatically cleanup any running sequencers after each test"""
+    # Store references to any sequencers created during test
+    sequencers = []
+    
+    # Monkey patch Sequencer.__init__ to track instances
+    original_init = None
+    try:
+        from sequencer import Sequencer
+        original_init = Sequencer.__init__
+        
+        def tracking_init(self, *args, **kwargs):
+            sequencers.append(self)
+            return original_init(self, *args, **kwargs)
+        
+        Sequencer.__init__ = tracking_init
+        
+        yield  # Run the test
+        
+    finally:
+        # Cleanup: stop all sequencers that might still be running
+        for seq in sequencers:
+            try:
+                if hasattr(seq, 'is_playing') and seq.is_playing:
+                    seq.stop()
+            except:
+                pass  # Ignore cleanup errors
+        
+        # Restore original __init__
+        if original_init:
+            Sequencer.__init__ = original_init

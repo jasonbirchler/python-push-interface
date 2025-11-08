@@ -234,10 +234,16 @@ class Push2Adapter(UIAdapter):
                     if len(self.pressed_pads) == 2:
                         self._process_range_selection()
                     else:
-                        # Single pad press - select step for note input
-                        self.held_step_pad = step
+                        # Single pad press - toggle step selection
+                        if self.held_step_pad == step:
+                            # Deselect if same step pressed again
+                            self.held_step_pad = None
+                            print(f"Deselected step {step}")
+                        else:
+                            # Select new step for note input
+                            self.held_step_pad = step
+                            print(f"Selected step {step} for note input")
                         self._update_pad_colors()
-                        print(f"Selected step {step} for note input")
             
             # Bottom 4 rows: MIDI keyboard (piano layout)
             else:
@@ -289,10 +295,7 @@ class Push2Adapter(UIAdapter):
                     if pad_id in self.pressed_pads:
                         del self.pressed_pads[pad_id]
                     
-                    # Clear held step if this was the selected one
-                    if step == self.held_step_pad:
-                        self.held_step_pad = None
-                        self._update_pad_colors()
+                    # Keep step selected - don't clear on release
             
             # Bottom 4 rows: MIDI keyboard
             else:
@@ -466,6 +469,10 @@ class Push2Adapter(UIAdapter):
                     color = 'dark_gray'  # Disabled pads
                 elif pad_pos in self.held_keyboard_pads:
                     color = 'red'  # Currently playing
+                elif (self.held_step_pad is not None and 
+                      self.tracks[self.current_track] is not None and
+                      self._is_note_at_step_and_pad(self.held_step_pad, pad_pos)):
+                    color = 'blue'  # Note exists at selected step
                 elif pad_pos in self.white_key_positions:
                     color = 'white'  # White keys
                 elif pad_pos in self.black_key_positions:
@@ -509,6 +516,32 @@ class Push2Adapter(UIAdapter):
         except TypeError:
             # If notes is a mock object, check if it has notes
             return hasattr(notes, '__len__') and len(notes) > 0
+    
+    def _is_note_at_step_and_pad(self, step, pad_pos):
+        """Check if a specific note exists at step that corresponds to keyboard pad"""
+        if self.tracks[self.current_track] is None:
+            return False
+            
+        # Get the MIDI note for this pad position
+        if pad_pos in self.piano_note_mapping:
+            pad_note = self.piano_note_mapping[pad_pos] + self.keyboard_octave_offset * 12
+            pad_note = max(0, min(127, pad_note))  # Clamp to MIDI range
+        else:
+            return False
+            
+        # Get notes at this step
+        pattern = self.sequencer._internal_sequencer.tracks[self.current_track]
+        notes = pattern.get_notes_at_step(step)
+        
+        # Check if any note matches the pad's note
+        try:
+            for note in notes:
+                if hasattr(note, 'note') and note.note == pad_note:
+                    return True
+        except (TypeError, AttributeError):
+            pass
+            
+        return False
     
     def _update_octave_buttons(self):
         """Update octave button colors"""

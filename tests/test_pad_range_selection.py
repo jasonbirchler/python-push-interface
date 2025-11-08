@@ -201,6 +201,8 @@ class TestPadColorSystem:
         adapter.white_key_positions = set()
         adapter.black_key_positions = set()
         adapter.held_keyboard_pads = set()
+        adapter.piano_note_mapping = {}  # Add missing piano note mapping
+        adapter.keyboard_octave_offset = 0
         
         # Mock the Push2 hardware
         adapter.push = Mock()

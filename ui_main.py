@@ -49,7 +49,7 @@ class SequencerUI:
             else:
                 return self.renderer.render_main_display(
                     self.sequencer, self.device_manager, self.app_ref.tracks,
-                    current_track, self.cc_values, self.octave, self.app_ref.midi_output)
+                    current_track, self.cc_values, self.octave, self.app_ref.midi_output, self.app_ref)
 
         except Exception as e:
             print(f"Display error: {e}")

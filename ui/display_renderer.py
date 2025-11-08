@@ -19,6 +19,13 @@ class DisplayRenderer:
         if len(words) > 1:
             trimmed_name = ' '.join(words[:2])
         return trimmed_name
+    
+    def _note_to_name(self, note_num):
+        """Convert MIDI note number to note name"""
+        notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        octave = (note_num // 12) - 1
+        note_name = notes[note_num % 12]
+        return f"{note_name}{octave}"
         
     def create_surface(self):
         """Create and setup Cairo surface"""
@@ -131,7 +138,7 @@ class DisplayRenderer:
         
         return self.surface_to_frame(surface)
         
-    def render_main_display(self, sequencer, device_manager, tracks, current_track, cc_values, octave, midi_output):
+    def render_main_display(self, sequencer, device_manager, tracks, current_track, cc_values, octave, midi_output, app_ref=None):
         """Render main sequencer display"""
         surface, ctx = self.create_surface()
         
@@ -163,6 +170,28 @@ class DisplayRenderer:
         status = "PLAYING" if sequencer.is_playing else "STOPPED"
         clock_source = midi_output.selected_clock_source or "Internal"
         ctx.show_text(f"Clock: {clock_source} | BPM: {sequencer.bpm} | {status}")
+        
+        # Step note information (bottom left)
+        if (app_ref and hasattr(app_ref, 'held_step_pad') and 
+            app_ref.held_step_pad is not None and 
+            tracks[current_track] is not None):
+            
+            step = app_ref.held_step_pad
+            pattern = sequencer.tracks[current_track]
+            notes = pattern.get_notes_at_step(step)
+            
+            ctx.set_font_size(self.FONT_SIZE_SMALL)
+            y_pos = self.HEIGHT - 25
+            
+            if notes and len(notes) > 0:
+                for i, note in enumerate(notes):
+                    if hasattr(note, 'note') and hasattr(note, 'velocity'):
+                        note_name = self._note_to_name(note.note)
+                        ctx.move_to(10, y_pos + i * 12)
+                        ctx.show_text(f"Step {step}: {note_name} ({note.note}) Vel:{note.velocity}")
+            else:
+                ctx.move_to(10, y_pos)
+                ctx.show_text(f"Step {step}: (empty)")
         
         # Octave
         ctx.move_to(self.WIDTH - 80, self.HEIGHT - 10)

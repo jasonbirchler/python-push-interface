@@ -411,9 +411,9 @@ class Push2Adapter(UIAdapter):
                 elif pad_pos in self.keyboard_notes_c:
                     color = 'yellow'  # C notes (full yellow)
                 elif self.held_step_pad is not None and self.tracks[self.current_track] is not None:
-                    color = 'yellow_dim'  # Ready for note input (dim yellow)
+                    color = 'light_gray'  # Ready for note input
                 else:
-                    color = 'yellow_dim'  # Normal keyboard (dim yellow)
+                    color = 'light_gray'  # Normal keyboard
                 
                 self.push.pads.set_pad_color(pad_pos, color)
     

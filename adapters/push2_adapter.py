@@ -254,7 +254,7 @@ class Push2Adapter(UIAdapter):
                 if pad_pos in self.disabled_key_positions:
                     return  # Do nothing for disabled pads
                     
-                if self.tracks[self.current_track] is not None and self.held_step_pad is not None:
+                if self.tracks[self.current_track] is not None:
                     # Calculate note based on piano layout mapping
                     if pad_pos in self.piano_note_mapping:
                         note = self.piano_note_mapping[pad_pos]
@@ -271,11 +271,12 @@ class Push2Adapter(UIAdapter):
                     channel = self.sequencer._internal_sequencer.track_channels[self.current_track]
                     port_name = getattr(self.sequencer._internal_sequencer, '_track_ports', {}).get(self.current_track)
                     
-                    # Add note to sequencer (range-aware)
-                    self.sequencer.add_note(self.current_track, self.held_step_pad, note, velocity)
-                    print(f"Added keyboard note {note} to track {self.current_track} step {self.held_step_pad}")
+                    # If step is selected, add note to sequencer
+                    if self.held_step_pad is not None:
+                        self.sequencer.add_note(self.current_track, self.held_step_pad, note, velocity)
+                        print(f"Added keyboard note {note} to track {self.current_track} step {self.held_step_pad}")
                     
-                    # Also play immediately for instant feedback
+                    # Trigger note on device
                     self.midi_output.send_note_on(channel, note, velocity, port_name)
                     self.held_keyboard_pads.add(pad_id)
                     

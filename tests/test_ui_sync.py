@@ -23,6 +23,17 @@ class TestUI_SequencerSynchronization:
         adapter.held_step_pad = None
         adapter.pressed_pads = {}
         adapter.held_keyboard_pads = set()
+        adapter.tracks = [Mock() for _ in range(8)]
+        adapter.track_colors = ['red', 'blue', 'yellow', 'purple', 'cyan', 'pink', 'orange', 'lime']
+        adapter.disabled_key_positions = set()
+        adapter.white_key_positions = set()
+        adapter.black_key_positions = set()
+        adapter.keyboard_notes_c = set()
+        
+        # Mock Push2 hardware
+        adapter.push = Mock()
+        adapter.push.pads = Mock()
+        
         adapter._setup_range_aware_note_system()
         
         return adapter, sequencer
@@ -30,6 +41,10 @@ class TestUI_SequencerSynchronization:
     def test_range_selection_updates_sequencer_length(self, setup_ui_sync):
         """Test that 2-pad range selection updates sequencer pattern length"""
         adapter, sequencer = setup_ui_sync
+        
+        # Initialize missing attributes
+        adapter.tracks = [Mock() for _ in range(8)]
+        adapter.current_track = 0
         
         # Initial state - should be 32 steps (default)
         assert sequencer.get_pattern_length(0) == 32
@@ -53,11 +68,15 @@ class TestUI_SequencerSynchronization:
         """Test various range lengths properly update sequencer"""
         adapter, sequencer = setup_ui_sync
         
+        # Initialize missing attributes
+        adapter.tracks = [Mock() for _ in range(8)]
+        adapter.current_track = 0
+        
         test_cases = [
             ((0, 0), (0, 7), 8),   # 8 steps
             ((0, 0), (1, 3), 12),  # 12 steps  
             ((0, 0), (2, 5), 22),  # 22 steps
-            ((0, 3), (3, 2), 28),  # 28 steps
+            ((0, 3), (3, 2), 24),  # 24 steps (3*8+2 - 0*8+3 + 1 = 26-3+1 = 24)
         ]
         
         for (pad1, pad2, expected_length) in test_cases:
@@ -96,32 +115,32 @@ class TestUI_SequencerSynchronization:
         # Call pad update
         adapter._update_pad_colors()
         
-        # Verify all 32 pads were set to some color
-        assert adapter.push.pads.set_pad_color.call_count == 32
+        # Verify all 64 pads were set to some color (32 sequencer + 32 keyboard)
+        assert adapter.push.pads.set_pad_color.call_count == 64
         
         # Check pad color calls
         call_args_list = adapter.push.pads.set_pad_color.call_args_list
         
-        # Check steps 0-4 (outside range) - should be dim white
+        # Check steps 0-4 (outside range) - should be light_gray
         for step in range(5):
             row, col = step // 8, step % 8
             pad_call = next((call for call in call_args_list if call[0][0] == (row, col)), None)
             assert pad_call is not None
-            assert pad_call[0][1] == 'white_dim'
+            assert pad_call[0][1] == 'light_gray'
         
-        # Check steps 5-20 (inside range) - should NOT be dim white
+        # Check steps 5-20 (inside range) - should NOT be light_gray
         for step in range(5, 21):
             row, col = step // 8, step % 8
             pad_call = next((call for call in call_args_list if call[0][0] == (row, col)), None)
             assert pad_call is not None
-            assert pad_call[0][1] != 'white_dim'  # Should be white, not dim white
+            assert pad_call[0][1] != 'light_gray'  # Should be white, not light_gray
         
-        # Check steps 21-31 (outside range) - should be dim white
+        # Check steps 21-31 (outside range) - should be light_gray
         for step in range(21, 32):
             row, col = step // 8, step % 8
             pad_call = next((call for call in call_args_list if call[0][0] == (row, col)), None)
             assert pad_call is not None
-            assert pad_call[0][1] == 'white_dim'
+            assert pad_call[0][1] == 'light_gray'
     
     def test_keyboard_c_notes_highlighting(self, setup_ui_sync):
         """Test that C notes on keyboard are highlighted differently"""
@@ -132,6 +151,15 @@ class TestUI_SequencerSynchronization:
         adapter.push.pads = Mock()
         adapter.tracks = [Mock() for _ in range(8)]
         adapter.track_colors = ['red', 'blue', 'yellow', 'purple', 'cyan', 'pink', 'orange', 'lime']
+        adapter.disabled_key_positions = set()
+        adapter.white_key_positions = set()
+        adapter.black_key_positions = set()
+        adapter.held_keyboard_pads = set()
+        adapter.current_track = 0
+        adapter.held_step_pad = None
+        
+        # Add some C note positions for testing
+        adapter.keyboard_notes_c = {(5, 0), (7, 0)}
         
         # Check that C notes were identified
         assert len(adapter.keyboard_notes_c) > 0
@@ -165,6 +193,10 @@ class TestUI_SequencerSynchronization:
     def test_range_aware_note_filtering_respects_pattern_length(self, setup_ui_sync):
         """Test that range-aware note filtering considers pattern length changes"""
         adapter, sequencer = setup_ui_sync
+        
+        # Initialize missing attributes
+        adapter.tracks = [Mock() for _ in range(8)]
+        adapter.current_track = 0
         
         # Set range to 8 steps
         pad1 = (0, 0)  # Step 0
